@@ -1,0 +1,68 @@
+# Production stack for a single VPS. nginx on the host terminates HTTPS and proxies to the
+# ports below, which are bound to 127.0.0.1 only. Configure everything in ./.env
+# (copy from .env.production.example).
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+
+name: snapshare
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: snapshare
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: snapshare
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U snapshare"]
+      interval: 5s
+      retries: 20
+
+  s3:
+    image: rustfs/rustfs:latest
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY_ID:?set S3_ACCESS_KEY_ID in .env}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_ACCESS_KEY:?set S3_SECRET_ACCESS_KEY in .env}
+    ports: ["127.0.0.1:${S3_PORT:-9000}:9000"]
+    volumes: [s3data:/data]
+
+  # One-shot: create the bucket and make processed renditions (public/*) world-readable.
+  s3-init:
+    image: amazon/aws-cli:latest
+    depends_on: [s3]
+    restart: on-failure
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${S3_REGION:-us-east-1}
+      BUCKET: ${S3_BUCKET:-snapshare-media}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        until aws --endpoint-url http://s3:9000 s3api list-buckets >/dev/null 2>&1; do sleep 1; done
+        aws --endpoint-url http://s3:9000 s3api create-bucket --bucket "$$BUCKET" 2>/dev/null || true
+        aws --endpoint-url http://s3:9000 s3api put-bucket-policy --bucket "$$BUCKET" --policy "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"AWS\":[\"*\"]},\"Action\":[\"s3:GetObject\"],\"Resource\":[\"arn:aws:s3:::$$BUCKET/public/*\"]}]}"
+        echo "bucket ready"
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    image: snapshare-backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://snapshare:${POSTGRES_PASSWORD}@postgres:5432/snapshare
+      S3_ENDPOINT: http://s3:9000
+    depends_on:
+      postgres: { condition: service_healthy }
+      s3-init: { condition: service_completed_successfully }
+    ports: ["127.0.0.1:${BACKEND_PORT:-3030}:3000"]
+
+volumes:
+  pgdata:
+  s3data:

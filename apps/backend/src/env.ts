@@ -13,6 +13,9 @@ const schema = z.object({
   JWT_SECRET: z.string().min(32),
 
   S3_ENDPOINT: z.string().url().optional(),
+  /** Public endpoint used only to sign upload/download URLs (defaults to S3_ENDPOINT).
+   *  In Docker: S3_ENDPOINT=http://s3:9000 (internal), this=https://media.example.com. */
+  S3_PRESIGN_ENDPOINT: z.string().url().optional(),
   S3_REGION: z.string().default("auto"),
   S3_BUCKET: z.string(),
   S3_ACCESS_KEY_ID: z.string(),
@@ -22,6 +25,14 @@ const schema = z.object({
   MAX_UPLOAD_BYTES: z.coerce.number().default(15 * 1024 * 1024),
   UPLOADS_PER_MINUTE: z.coerce.number().default(30),
   MEDIA_WORKERS: z.coerce.number().int().min(1).default(2),
+
+  /** Production: directory holding the built web apps (host/, slideshow/) to serve. */
+  STATIC_DIR: z.string().optional(),
+  /** Production: apply pending DB migrations on startup. */
+  RUN_MIGRATIONS: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((v) => v === "true"),
 });
 
 const parsed = schema.safeParse(process.env);

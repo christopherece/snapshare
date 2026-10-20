@@ -32,6 +32,12 @@ Testing on a phone: set `EXPO_PUBLIC_API_URL` (apps/mobile/.env) and `S3_ENDPOIN
 (apps/backend/.env) to your machine's LAN IP — `localhost` on a phone is the phone. Presigned upload URLs embed the
 `S3_ENDPOINT` host, so it must be reachable from the phone too.
 
+## Deploying
+
+See **[DEPLOY.md](DEPLOY.md)**: one `docker compose -f docker-compose.prod.yml up -d --build` on a VPS behind nginx
+(config in `deploy/nginx/`). The production image serves the API plus the built dashboard (`/host`) and slideshow
+(`/slideshow`) from one origin.
+
 ## How a photo flows
 
 ```

@@ -9,13 +9,18 @@ import { env } from "../env.ts";
  *   public/{eventId}/{photoId}/thumb.webp     world-readable (CDN), ~480px
  *   public/{eventId}/{photoId}/display.webp   world-readable (CDN), ~2048px
  */
-export const s3 = new S3Client({
-  endpoint: env.S3_ENDPOINT,
+const credentials = {
   region: env.S3_REGION,
   bucket: env.S3_BUCKET,
   accessKeyId: env.S3_ACCESS_KEY_ID,
   secretAccessKey: env.S3_SECRET_ACCESS_KEY,
-});
+};
+
+/** Used by the server itself (may be an internal address, e.g. http://s3:9000 in Docker). */
+export const s3 = new S3Client({ ...credentials, endpoint: env.S3_ENDPOINT });
+
+/** Signs URLs that phones/browsers will call — the signature covers the host, so it must be public. */
+const signer = env.S3_PRESIGN_ENDPOINT ? new S3Client({ ...credentials, endpoint: env.S3_PRESIGN_ENDPOINT }) : s3;
 
 export const keys = {
   original: (eventId: string, photoId: string) => `originals/${eventId}/${photoId}`,
@@ -26,7 +31,7 @@ export const keys = {
 export const UPLOAD_URL_TTL_SECONDS = 15 * 60;
 
 export function presignUpload(key: string, contentType: string) {
-  return s3.presign(key, {
+  return signer.presign(key, {
     method: "PUT",
     expiresIn: UPLOAD_URL_TTL_SECONDS,
     type: contentType,
@@ -35,7 +40,7 @@ export function presignUpload(key: string, contentType: string) {
 
 /** Short-lived signed GET for original files (host downloads). */
 export function presignDownload(key: string, expiresIn = 3600) {
-  return s3.presign(key, { method: "GET", expiresIn });
+  return signer.presign(key, { method: "GET", expiresIn });
 }
 
 export function publicUrl(key: string) {

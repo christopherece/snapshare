@@ -51,5 +51,11 @@ export function rateLimit<E extends object>(
 }
 
 export function clientIp(c: { req: { header(name: string): string | undefined } }) {
-  return c.req.header("cf-connecting-ip") ?? c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  // X-Real-IP is set by our nginx from the TCP peer, so clients can't spoof it (unlike X-Forwarded-For).
+  return (
+    c.req.header("cf-connecting-ip") ??
+    c.req.header("x-real-ip") ??
+    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
+    "unknown"
+  );
 }

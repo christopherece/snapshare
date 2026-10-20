@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!**/.env.example
+.git
+.expo
+**/*.log
+
+# Mobile source isn't part of the server image — only its manifest (for the lockfile).
+apps/mobile/*
+!apps/mobile/package.json

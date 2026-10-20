@@ -1,8 +1,11 @@
+import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { Hono } from "hono";
+import { serveStatic } from "hono/bun";
 import { cors } from "hono/cors";
 import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
+import { db } from "./db/client.ts";
 import { env } from "./env.ts";
 import { mediaQueue, scheduleAbandonedUploadCleanup } from "./media/queue.ts";
 import { type WsData, attachServer, handleUpgrade, websocketHandlers } from "./realtime/hub.ts";
@@ -23,6 +26,18 @@ const app = new Hono()
   .route("/api/downloads", downloadRoutes)
   .route("/api", guestRoutes);
 
+// Production: serve the built dashboard (/host) and slideshow (/slideshow) from this same origin.
+if (env.STATIC_DIR) {
+  const dir = env.STATIC_DIR;
+  app.get("/", (c) => c.redirect("/host/"));
+  for (const name of ["host", "slideshow"]) {
+    app.get(`/${name}`, (c) => c.redirect(`/${name}/${new URL(c.req.url).search}`));
+    app.use(`/${name}/*`, serveStatic({ root: dir }));
+    // Unknown paths fall back to the app shell (the dashboard uses hash routing).
+    app.get(`/${name}/*`, serveStatic({ root: dir, rewriteRequestPath: () => `/${name}/index.html` }));
+  }
+}
+
 app.onError((err, c) => {
   if (err instanceof HTTPException) {
     return err.res ?? c.json({ error: err.message }, err.status);
@@ -32,6 +47,11 @@ app.onError((err, c) => {
 });
 
 app.notFound((c) => c.json({ error: "Not found" }, 404));
+
+if (env.RUN_MIGRATIONS) {
+  await migrate(db, { migrationsFolder: `${import.meta.dir}/../drizzle` });
+  console.log("Database migrations applied");
+}
 
 const server = Bun.serve<WsData>({
   port: env.PORT,
