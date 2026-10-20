@@ -54,6 +54,10 @@ services:
     build:
       context: .
       dockerfile: apps/backend/Dockerfile
+      args:
+        # CPUs without AVX: set BUN_VERSION=1.2.23 and BUN_BASELINE=1 in .env (see DEPLOY.md).
+        BUN_VERSION: ${BUN_VERSION:-1.4.3}
+        BUN_BASELINE: ${BUN_BASELINE:-0}
     image: snapshare-backend
     restart: unless-stopped
     env_file: .env

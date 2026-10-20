@@ -16,15 +16,31 @@ compose plugin, nginx, and two DNS **A records** pointing at the VPS's public IP
 
 (Add matching `AAAA` records too if the VPS has IPv6.)
 
-**CPU must support AVX/AVX2** (Bun requires it). Check with `grep -c avx2 /proc/cpuinfo` — anything above
-`0` is fine. On a **Proxmox** VM the default CPU type (`kvm64`/`x86-64-v2-AES`) hides AVX:
+### CPU check (AVX)
+
+Bun 1.4 needs AVX/AVX2. In the server, run `grep -c avx2 /proc/cpuinfo` — anything above `0` is fine.
+If it prints `0`:
+
+**a) Proxmox VM, physical CPU has AVX2** (check on the *Proxmox host*: `grep -c avx2 /proc/cpuinfo`):
+the VM's default CPU type (`x86-64-v2-AES`/`kvm64`) hides it.
 
 1. Proxmox web UI → select the VM → **Hardware** → **Processors** → *Edit* → **Type: `host`**
    (or `x86-64-v3` if you migrate VMs between different hosts) → OK.
 2. **Shut down** the VM and **start** it again (a reboot from inside the VM is not enough).
 3. In the VM, `grep -c avx2 /proc/cpuinfo` should now be above `0`.
 
-Same command from the Proxmox host shell: `qm set <VMID> --cpu host`, then `qm shutdown <VMID> && qm start <VMID>`.
+Same from the Proxmox host shell: `qm set <VMID> --cpu host`, then `qm shutdown <VMID> && qm start <VMID>`.
+
+**b) The physical CPU has no AVX** (e.g. Intel Celeron J4125 / N5105 / J6412, Pentium Silver):
+use Bun's no-AVX build. In `.env`, uncomment:
+
+```bash
+BUN_VERSION=1.2.23
+BUN_BASELINE=1
+```
+
+then build as normal. (Fully tested; dependency versions are resolved at build time instead of
+from the lockfile, which older Bun can't read.)
 
 ## 1. Get the code
 
