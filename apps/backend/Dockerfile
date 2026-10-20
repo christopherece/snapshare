@@ -1,11 +1,13 @@
 # Production image: Bun API + built guest web app, host dashboard and slideshow.
 # Build from the repo root:  docker build -f apps/backend/Dockerfile .
+#
+# Requires an x86-64 CPU with AVX/AVX2 (or ARM64). On a Proxmox/KVM VM, set the CPU type to "host"
+# (or x86-64-v3) — the default kvm64/qemu64 type hides AVX and Bun aborts. See DEPLOY.md.
 
 # ─── 1. Dependencies (backend + web apps only — skips the Expo/mobile tree) ───
-FROM oven/bun:1.4 AS deps
+FROM oven/bun:1.4.3 AS deps
 WORKDIR /app
-# bunfig.toml is deliberately not copied: its hoisted-linker setting only matters for the Expo app,
-# and skipping it avoids a Bun config-parse failure seen on some VPS CPUs.
+# bunfig.toml is not copied: its hoisted-linker setting only matters for the Expo app.
 COPY package.json bun.lock ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/backend/package.json apps/backend/
@@ -31,7 +33,7 @@ RUN cd apps/web-host && bun build ./index.html --outdir /static/host --minify --
  && cd ../web-guest && bun build ./index.html --outdir /static/join --minify --public-path /join/
 
 # ─── 3. Runtime ───
-FROM oven/bun:1.4 AS runtime
+FROM oven/bun:1.4.3 AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=3000 \

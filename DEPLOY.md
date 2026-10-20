@@ -16,6 +16,16 @@ compose plugin, nginx, and two DNS **A records** pointing at the VPS's public IP
 
 (Add matching `AAAA` records too if the VPS has IPv6.)
 
+**CPU must support AVX/AVX2** (Bun requires it). Check with `grep -c avx2 /proc/cpuinfo` — anything above
+`0` is fine. On a **Proxmox** VM the default CPU type (`kvm64`/`x86-64-v2-AES`) hides AVX:
+
+1. Proxmox web UI → select the VM → **Hardware** → **Processors** → *Edit* → **Type: `host`**
+   (or `x86-64-v3` if you migrate VMs between different hosts) → OK.
+2. **Shut down** the VM and **start** it again (a reboot from inside the VM is not enough).
+3. In the VM, `grep -c avx2 /proc/cpuinfo` should now be above `0`.
+
+Same command from the Proxmox host shell: `qm set <VMID> --cpu host`, then `qm shutdown <VMID> && qm start <VMID>`.
+
 ## 1. Get the code
 
 ```bash
