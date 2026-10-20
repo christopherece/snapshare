@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch serve.ts",
-    "build": "bun build ./index.html --outdir dist --minify --public-path /host/",
+    "build": "bun build ./index.html --outdir dist --production --public-path /host/",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

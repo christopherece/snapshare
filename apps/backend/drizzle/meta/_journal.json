@@ -15,6 +15,13 @@
       "when": 1792495600606,
       "tag": "0001_remarkable_venus",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792520170770,
+      "tag": "0002_wise_fat_cobra",
+      "breakpoints": true
     }
   ]
 }

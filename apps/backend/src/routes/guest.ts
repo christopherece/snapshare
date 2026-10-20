@@ -7,7 +7,7 @@ import { z } from "zod";
 import { db, schema } from "../db/client.ts";
 import type { Event, Guest } from "../db/schema.ts";
 import { env } from "../env.ts";
-import { type AppEnv, hashToken, randomToken, requireGuest, resolveViewer } from "../lib/auth.ts";
+import { type AppEnv, assertEventLive, hashToken, randomToken, requireGuest, resolveViewer } from "../lib/auth.ts";
 import { cursor, toEventPublicDTO, toPhotoDTO } from "../lib/dto.ts";
 import { body, notFound, parse } from "../lib/http.ts";
 import { TokenBucket, clientIp, rateLimit } from "../lib/rate-limit.ts";
@@ -36,6 +36,7 @@ function assertGuestInEvent(guest: Guest, eventId: string) {
 }
 
 function assertAcceptingUploads(event: Event) {
+  assertEventLive(event);
   const graceMs = 12 * 60 * 60 * 1000;
   const ended = event.endsAt && Date.now() > event.endsAt.getTime() + graceMs;
   if (!event.uploadsOpen || ended) throw new HTTPException(403, { message: "Uploads are closed for this event" });
@@ -47,6 +48,7 @@ async function guestVisiblePhoto(guest: Guest, photoId: string) {
     where: and(eq(photos.id, photoId), eq(photos.status, "ready"), eq(photos.moderation, "approved")),
   });
   if (!photo || photo.eventId !== guest.eventId) notFound("Photo");
+  assertEventLive(await eventById(photo.eventId));
   return photo;
 }
 
@@ -56,6 +58,7 @@ export const guestRoutes = new Hono<AppEnv>()
   .get("/e/:slug", async (c) => {
     const event = await db.query.events.findFirst({ where: eq(schema.events.slug, c.req.param("slug").toLowerCase()) });
     if (!event) notFound("Event");
+    assertEventLive(event);
     return c.json(toEventPublicDTO(event));
   })
 
@@ -70,6 +73,7 @@ export const guestRoutes = new Hono<AppEnv>()
     );
     const event = await db.query.events.findFirst({ where: eq(schema.events.slug, c.req.param("slug").toLowerCase()) });
     if (!event) notFound("Event");
+    assertEventLive(event);
 
     if (event.passcodeHash) {
       const ok = input.passcode ? await Bun.password.verify(input.passcode, event.passcodeHash) : false;
@@ -152,6 +156,7 @@ export const guestRoutes = new Hono<AppEnv>()
     });
     if (!photo) notFound("Photo");
     if (photo.status !== "pending_upload") return c.json({ photoId: photo.id, status: photo.status });
+    assertEventLive(await eventById(photo.eventId));
 
     const file = s3.file(photo.originalKey);
     const stat = await file.stat().catch(() => null);
@@ -172,6 +177,7 @@ export const guestRoutes = new Hono<AppEnv>()
   /** Event info + join QR for the TV/projector display (auth: ?key=<displayKey>). */
   .get("/events/:id/display", async (c) => {
     const event = await eventById(c.req.param("id"));
+    assertEventLive(event);
     const viewer = await resolveViewer(event, { displayKey: c.req.query("key") });
     if (!viewer) throw new HTTPException(401, { message: "Invalid display key" });
     const joinUrl = env.GUEST_JOIN_URL.replace("{slug}", event.slug);

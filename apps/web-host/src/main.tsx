@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { Admin } from "./Admin";
 import { type Me, api, setUnauthorizedHandler, tokenStore } from "./api";
 import { EventList } from "./EventList";
 import { EventPage } from "./EventPage";
 import { Login } from "./Login";
-import { Team } from "./Team";
 import { navigate, useRoute } from "./router";
 
 function App() {
@@ -43,13 +43,16 @@ function App() {
     navigate("/");
   };
 
+  const isAdmin = me?.role === "admin";
   const page =
     route.page === "event" ? (
-      <EventPage key={route.id} eventId={route.id} token={token} />
-    ) : route.page === "team" && me?.role === "admin" ? (
-      <Team />
+      <EventPage key={route.id} eventId={route.id} token={token} me={me} />
+    ) : !me ? (
+      <p className="muted">Loading…</p>
+    ) : route.page === "admin" && isAdmin ? (
+      <Admin tab={route.tab} />
     ) : (
-      <EventList />
+      <EventList me={me} />
     );
 
   return (
@@ -60,11 +63,11 @@ function App() {
         </a>
         <nav className="row">
           <a href="#/" className={`nav-link ${route.page === "events" || route.page === "event" ? "active" : ""}`}>
-            Events
+            {isAdmin ? "My events" : "My event"}
           </a>
-          {me?.role === "admin" && (
-            <a href="#/team" className={`nav-link ${route.page === "team" ? "active" : ""}`}>
-              Team
+          {isAdmin && (
+            <a href="#/admin" className={`nav-link ${route.page === "admin" ? "active" : ""}`}>
+              Admin
             </a>
           )}
           <button className="btn ghost small" onClick={signOut} title={me ? `Signed in as ${me.email}` : undefined}>

@@ -5,6 +5,7 @@ import { HTTPException } from "hono/http-exception";
 import { sign, verify } from "hono/jwt";
 import { db, schema } from "../db/client.ts";
 import { env } from "../env.ts";
+import { assertCanManageEvent } from "../lib/auth.ts";
 import { s3 } from "../lib/storage.ts";
 
 const { photos, guests } = schema;
@@ -49,10 +50,10 @@ export const downloadRoutes = new Hono().get("/:token", async (c) => {
     throw new HTTPException(401, { message: "Download link is invalid or has expired" });
   }
 
-  const event = await db.query.events.findFirst({
-    where: and(eq(schema.events.id, payload.evt), eq(schema.events.hostId, String(payload.sub))),
-  });
-  if (!event) throw new HTTPException(404, { message: "Event not found" });
+  // Re-check at download time: the account may have been disabled or the event suspended since.
+  const host = await db.query.hosts.findFirst({ where: eq(schema.hosts.id, String(payload.sub)) });
+  if (!host || host.disabledAt) throw new HTTPException(401, { message: "Download link is invalid or has expired" });
+  const event = await assertCanManageEvent(host, payload.evt);
 
   const conds = [eq(photos.eventId, event.id), eq(photos.status, "ready"), ne(photos.moderation, "hidden")];
   if (payload.filter === "favorites") conds.push(eq(photos.isFavorite, true));

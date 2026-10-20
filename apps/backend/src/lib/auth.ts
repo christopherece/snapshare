@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import type { Context, MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { sign, verify } from "hono/jwt";
@@ -86,12 +86,24 @@ export const requireGuest: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next();
 };
 
-export async function assertHostOwnsEvent(hostId: string, eventId: string): Promise<Event> {
-  const event = await db.query.events.findFirst({
-    where: and(eq(schema.events.id, eventId), eq(schema.events.hostId, hostId)),
-  });
-  if (!event) throw new HTTPException(404, { message: "Event not found" });
+/**
+ * The event if this host may manage it: admins can manage every event, hosts only their own —
+ * and not while an admin has it suspended.
+ */
+export async function assertCanManageEvent(host: Host, eventId: string): Promise<Event> {
+  const event = await db.query.events.findFirst({ where: eq(schema.events.id, eventId) });
+  if (!event || (host.role !== "admin" && event.hostId !== host.id)) {
+    throw new HTTPException(404, { message: "Event not found" });
+  }
+  if (event.suspendedAt && host.role !== "admin") {
+    throw new HTTPException(403, { message: "This event has been suspended. Please contact the organiser." });
+  }
   return event;
+}
+
+/** Guests, displays and joins are refused while an event is suspended. */
+export function assertEventLive(event: Event) {
+  if (event.suspendedAt) throw new HTTPException(410, { message: "This event is no longer available" });
 }
 
 export type Viewer =
@@ -109,8 +121,13 @@ export async function resolveViewer(
 ): Promise<Viewer | null> {
   if (creds.bearer) {
     const hostId = await verifyHostToken(creds.bearer);
-    if (hostId && hostId === event.hostId && (await findActiveHost(hostId))) return { role: "host", hostId };
+    const host = hostId ? await findActiveHost(hostId) : null;
+    if (host && (host.role === "admin" || (host.id === event.hostId && !event.suspendedAt))) {
+      return { role: "host", hostId: host.id };
+    }
   }
+  // Everyone else is shut out of a suspended event.
+  if (event.suspendedAt) return null;
   if (creds.guestToken) {
     const guest = await findGuestByToken(creds.guestToken);
     if (guest && guest.eventId === event.id) return { role: "guest", guest };

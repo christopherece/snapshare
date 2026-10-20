@@ -31,7 +31,11 @@ export function Join({
     let cancelled = false;
     api.getEvent(slug).then(
       (e) => !cancelled && setEvent(e),
-      () => !cancelled && setLookupError("We couldn't find an event with that code."),
+      (err) =>
+        !cancelled &&
+        setLookupError(
+          err instanceof ApiError && err.status === 410 ? `${err.message}.` : "We couldn't find an event with that code.",
+        ),
     );
     return () => {
       cancelled = true;

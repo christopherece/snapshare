@@ -1,56 +1,61 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import QRCode from "qrcode";
 import { z } from "zod";
 import { db, schema } from "../db/client.ts";
+import type { Host } from "../db/schema.ts";
 import { env } from "../env.ts";
-import { type AppEnv, assertHostOwnsEvent, randomToken, requireHost } from "../lib/auth.ts";
+import { type AppEnv, assertCanManageEvent, randomToken, requireHost } from "../lib/auth.ts";
 import { toPhotoDTO } from "../lib/dto.ts";
+import { eventInput, hostEventView, joinUrl, photoCounts, updateEvent } from "../lib/events.ts";
 import { body, notFound, randomSlug } from "../lib/http.ts";
 import { presignDownload, s3 } from "../lib/storage.ts";
 import { realtime } from "../realtime/hub.ts";
 import { signDownloadPath } from "./downloads.ts";
 
-const eventInput = z.object({
-  name: z.string().min(1).max(160),
-  location: z.string().max(255).nullish(),
-  startsAt: z.coerce.date().nullish(),
-  endsAt: z.coerce.date().nullish(),
-  passcode: z.string().min(4).max(64).nullish(),
-  requireApproval: z.boolean().optional(),
-  uploadsOpen: z.boolean().optional(),
-});
-
-const joinUrl = (slug: string) => env.GUEST_JOIN_URL.replace("{slug}", slug);
-const slideshowUrl = (e: { id: string; displayKey: string }) =>
-  `${env.SLIDESHOW_URL}/?event=${e.id}&key=${encodeURIComponent(e.displayKey)}`;
-
-async function hostEventView(e: typeof schema.events.$inferSelect) {
-  const { passcodeHash, ...rest } = e;
-  return { ...rest, hasPasscode: passcodeHash !== null, joinUrl: joinUrl(e.slug), slideshowUrl: slideshowUrl(e) };
-}
+/** Event limit for a host account (null = unlimited, for admins). */
+export const eventLimitFor = (host: Host) => (host.role === "admin" ? null : env.HOST_EVENT_LIMIT);
 
 export const hostRoutes = new Hono<AppEnv>()
   .use(requireHost)
 
   // ─── Events ─────────────────────────────────────────────────────────────
 
+  /** The signed-in host's own events (admins see everyone's on the Admin page). */
   .get("/events", async (c) => {
     const rows = await db.query.events.findMany({
       where: eq(schema.events.hostId, c.get("hostId")),
       orderBy: desc(schema.events.createdAt),
     });
-    const counts = await photoCounts(c.get("hostId"));
-    return c.json(await Promise.all(rows.map(async (e) => ({ ...(await hostEventView(e)), ...counts(e.id) }))));
+    const counts = await photoCounts(rows.map((e) => e.id));
+    return c.json(rows.map((e) => ({ ...hostEventView(e), ...counts(e.id) })));
   })
 
   .get("/events/:id", async (c) => {
-    const event = await assertHostOwnsEvent(c.get("hostId"), c.req.param("id"));
-    const counts = await photoCounts(c.get("hostId"), event.id);
-    return c.json({ ...(await hostEventView(event)), ...counts(event.id) });
+    const event = await assertCanManageEvent(c.get("host"), c.req.param("id"));
+    const counts = await photoCounts([event.id]);
+    const owner = await db.query.hosts.findFirst({
+      where: eq(schema.hosts.id, event.hostId),
+      columns: { id: true, name: true, email: true },
+    });
+    return c.json({ ...hostEventView(event), ...counts(event.id), owner });
   })
 
   .post("/events", async (c) => {
+    const host = c.get("host");
+    const limit = eventLimitFor(host);
+    if (limit !== null) {
+      const [{ n }] = (await db.select({ n: count() }).from(schema.events).where(eq(schema.events.hostId, host.id))) as [
+        { n: number },
+      ];
+      if (n >= limit) {
+        throw new HTTPException(403, {
+          message: `Your account includes ${limit} event${limit === 1 ? "" : "s"}. Contact the organiser for another.`,
+        });
+      }
+    }
+
     const input = await body(c, eventInput);
     const passcodeHash = input.passcode ? await Bun.password.hash(input.passcode) : null;
 
@@ -59,7 +64,7 @@ export const hostRoutes = new Hono<AppEnv>()
       const [event] = await db
         .insert(schema.events)
         .values({
-          hostId: c.get("hostId"),
+          hostId: host.id,
           slug: randomSlug(),
           name: input.name,
           location: input.location ?? null,
@@ -71,47 +76,38 @@ export const hostRoutes = new Hono<AppEnv>()
         })
         .onConflictDoNothing({ target: schema.events.slug })
         .returning();
-      if (event) return c.json(await hostEventView(event), 201);
+      if (event) return c.json(hostEventView(event), 201);
     }
     throw new Error("Could not allocate event slug");
   })
 
   .patch("/events/:id", async (c) => {
-    await assertHostOwnsEvent(c.get("hostId"), c.req.param("id"));
+    const event = await assertCanManageEvent(c.get("host"), c.req.param("id"));
     const input = await body(c, eventInput.partial());
-    const { passcode, ...rest } = input;
-    const [event] = await db
-      .update(schema.events)
-      .set({
-        ...rest,
-        ...(passcode !== undefined && { passcodeHash: passcode ? await Bun.password.hash(passcode) : null }),
-      })
-      .where(eq(schema.events.id, c.req.param("id")))
-      .returning();
-    return c.json(await hostEventView(event!));
+    return c.json(hostEventView((await updateEvent(event.id, input))!));
   })
 
   /** Rotate the slideshow key, e.g. if the display URL leaked. */
   .post("/events/:id/rotate-display-key", async (c) => {
-    await assertHostOwnsEvent(c.get("hostId"), c.req.param("id"));
-    const [event] = await db
+    const event = await assertCanManageEvent(c.get("host"), c.req.param("id"));
+    const [updated] = await db
       .update(schema.events)
       .set({ displayKey: randomToken(24) })
-      .where(eq(schema.events.id, c.req.param("id")))
+      .where(eq(schema.events.id, event.id))
       .returning();
-    return c.json(await hostEventView(event!));
+    return c.json(hostEventView(updated!));
   })
 
   // ─── QR code + printable flyer ──────────────────────────────────────────
 
   .get("/events/:id/qr.svg", async (c) => {
-    const event = await assertHostOwnsEvent(c.get("hostId"), c.req.param("id"));
+    const event = await assertCanManageEvent(c.get("host"), c.req.param("id"));
     const svg = await QRCode.toString(joinUrl(event.slug), { type: "svg", margin: 1, errorCorrectionLevel: "M" });
     return c.body(svg, 200, { "Content-Type": "image/svg+xml" });
   })
 
   .get("/events/:id/flyer", async (c) => {
-    const event = await assertHostOwnsEvent(c.get("hostId"), c.req.param("id"));
+    const event = await assertCanManageEvent(c.get("host"), c.req.param("id"));
     const svg = await QRCode.toString(joinUrl(event.slug), { type: "svg", margin: 0, errorCorrectionLevel: "M" });
     return c.html(renderFlyer(event.name, event.slug, svg));
   })
@@ -123,7 +119,7 @@ export const hostRoutes = new Hono<AppEnv>()
       c,
       z.object({ moderation: z.enum(["pending", "approved", "hidden"]).optional(), isFavorite: z.boolean().optional() }),
     );
-    const photo = await findHostPhoto(c.get("hostId"), c.req.param("id"));
+    const photo = await findManagedPhoto(c.get("host"), c.req.param("id"));
     const [updated] = await db.update(schema.photos).set(input).where(eq(schema.photos.id, photo.id)).returning();
     if (updated!.status === "ready") {
       realtime.photoModerated(toPhotoDTO(updated!, photo.guestName), photo.moderation);
@@ -132,7 +128,7 @@ export const hostRoutes = new Hono<AppEnv>()
   })
 
   .delete("/photos/:id", async (c) => {
-    const photo = await findHostPhoto(c.get("hostId"), c.req.param("id"));
+    const photo = await findManagedPhoto(c.get("host"), c.req.param("id"));
     await db.delete(schema.photos).where(eq(schema.photos.id, photo.id));
     await Promise.allSettled(
       [photo.originalKey, photo.thumbKey, photo.displayKey].filter(Boolean).map((k) => s3.delete(k!)),
@@ -144,7 +140,7 @@ export const hostRoutes = new Hono<AppEnv>()
   .post("/guests/:id/block", async (c) => {
     const guest = await db.query.guests.findFirst({ where: eq(schema.guests.id, c.req.param("id")) });
     if (!guest) notFound("Guest");
-    await assertHostOwnsEvent(c.get("hostId"), guest.eventId);
+    await assertCanManageEvent(c.get("host"), guest.eventId);
     await db.update(schema.guests).set({ isBlocked: true }).where(eq(schema.guests.id, guest.id));
     return c.body(null, 204);
   })
@@ -153,17 +149,14 @@ export const hostRoutes = new Hono<AppEnv>()
 
   /** Issue a 5-minute signed link that streams the event's originals as a ZIP. */
   .post("/events/:id/download-link", async (c) => {
-    const event = await assertHostOwnsEvent(c.get("hostId"), c.req.param("id"));
+    const event = await assertCanManageEvent(c.get("host"), c.req.param("id"));
     const filter = c.req.query("filter") === "favorites" ? "favorites" : "all";
     return c.json({ path: await signDownloadPath(c.get("hostId"), event.id, filter) });
   })
 
-  /**
-   * Manifest of signed links to every original. A streamed ZIP endpoint
-   * (or an async "export ready" email for large events) can build on this.
-   */
+  /** Manifest of signed links to every original. */
   .get("/events/:id/originals", async (c) => {
-    const event = await assertHostOwnsEvent(c.get("hostId"), c.req.param("id"));
+    const event = await assertCanManageEvent(c.get("host"), c.req.param("id"));
     const rows = await db
       .select({ id: schema.photos.id, originalKey: schema.photos.originalKey, createdAt: schema.photos.createdAt })
       .from(schema.photos)
@@ -178,46 +171,14 @@ export const hostRoutes = new Hono<AppEnv>()
     );
   });
 
-/** Ready-photo counts per event for a host (optionally one event). */
-async function photoCounts(hostId: string, eventId?: string) {
-  const rows = await db
-    .select({
-      eventId: schema.photos.eventId,
-      photoCount: sql<number>`count(*)::int`,
-      pendingCount: sql<number>`(count(*) filter (where ${schema.photos.moderation} = 'pending'))::int`,
-      favoriteCount: sql<number>`(count(*) filter (where ${schema.photos.isFavorite}))::int`,
-      hiddenCount: sql<number>`(count(*) filter (where ${schema.photos.moderation} = 'hidden'))::int`,
-    })
-    .from(schema.photos)
-    .innerJoin(schema.events, eq(schema.events.id, schema.photos.eventId))
-    .where(
-      and(
-        eq(schema.events.hostId, hostId),
-        eq(schema.photos.status, "ready"),
-        eventId ? eq(schema.photos.eventId, eventId) : undefined,
-      ),
-    )
-    .groupBy(schema.photos.eventId);
-  const byEvent = new Map(rows.map((r) => [r.eventId, r]));
-  return (id: string) => {
-    const r = byEvent.get(id);
-    return {
-      photoCount: r?.photoCount ?? 0,
-      pendingCount: r?.pendingCount ?? 0,
-      favoriteCount: r?.favoriteCount ?? 0,
-      hiddenCount: r?.hiddenCount ?? 0,
-    };
-  };
-}
-
-async function findHostPhoto(hostId: string, photoId: string) {
+async function findManagedPhoto(host: Host, photoId: string) {
   const [row] = await db
     .select({ photo: schema.photos, guestName: schema.guests.displayName })
     .from(schema.photos)
-    .innerJoin(schema.events, eq(schema.events.id, schema.photos.eventId))
     .leftJoin(schema.guests, eq(schema.guests.id, schema.photos.guestId))
-    .where(and(eq(schema.photos.id, photoId), eq(schema.events.hostId, hostId)));
+    .where(eq(schema.photos.id, photoId));
   if (!row) notFound("Photo");
+  await assertCanManageEvent(host, row.photo.eventId);
   return { ...row.photo, guestName: row.guestName };
 }
 

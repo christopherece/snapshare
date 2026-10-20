@@ -46,6 +46,8 @@ export const hostInvites = pgTable("host_invites", {
   tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
   /** Who it's for — a reminder for the admin, e.g. "Sarah (wedding)". */
   note: varchar("note", { length: 120 }),
+  /** If set, only this email can register with the invite (so a forwarded link can't be used). */
+  email: varchar("email", { length: 255 }),
   createdBy: uuid("created_by").references(() => hosts.id, { onDelete: "set null" }),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   usedAt: timestamp("used_at", { withTimezone: true }),
@@ -77,6 +79,8 @@ export const events = pgTable(
     /** Secret for the read-only slideshow display (TV/projector). */
     displayKey: varchar("display_key", { length: 64 }).notNull(),
     coverKey: text("cover_key"),
+    /** Set by an admin: the event is offline for guests, displays and its host until restored. */
+    suspendedAt: timestamp("suspended_at", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [index("events_host_idx").on(t.hostId)],

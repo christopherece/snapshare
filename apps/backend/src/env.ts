@@ -16,6 +16,8 @@ const schema = z.object({
   REGISTRATION: z.enum(["invite", "open"]).default("invite"),
   /** This host account is made admin on startup (comma-separate several). */
   ADMIN_EMAIL: z.string().optional(),
+  /** How many events a (non-admin) host account may create. Admins are unlimited. */
+  HOST_EVENT_LIMIT: z.coerce.number().int().min(1).default(1),
 
   S3_ENDPOINT: z.string().url().optional(),
   /** Public endpoint used only to sign upload/download URLs (defaults to S3_ENDPOINT).

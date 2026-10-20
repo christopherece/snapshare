@@ -19,6 +19,8 @@ export interface HostEvent {
   joinUrl: string;
   slideshowUrl: string;
   createdAt: string;
+  suspended: boolean;
+  owner?: { id: string; name: string; email: string };
   photoCount?: number;
   pendingCount?: number;
   favoriteCount?: number;
@@ -42,6 +44,14 @@ export interface Me {
   name: string;
   email: string;
   role: "admin" | "host";
+  /** Max events this account may create; null = unlimited (admins). */
+  eventLimit: number | null;
+}
+
+export interface InviteInfo {
+  note: string | null;
+  email: string | null;
+  expiresAt: string;
 }
 
 export interface AuthConfig {
@@ -63,6 +73,7 @@ export interface HostAccount {
 export interface Invite {
   id: string;
   note: string | null;
+  email: string | null;
   expiresAt: string;
   createdAt: string;
   token?: string;
@@ -127,14 +138,19 @@ export const api = {
     }),
   authConfig: () => json<AuthConfig>("/auth/config"),
   me: () => json<Me>("/auth/me"),
+  inviteInfo: (token: string) => json<InviteInfo>(`/auth/invite/${encodeURIComponent(token)}`),
 
   admin: {
+    events: () => json<HostEvent[]>("/admin/events"),
+    updateEvent: (id: string, patch: EventInput & { suspended?: boolean }) =>
+      json<HostEvent>(`/admin/events/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+    deleteEvent: (id: string) => json<{ deleted: boolean }>(`/admin/events/${id}`, { method: "DELETE" }),
     hosts: () => json<HostAccount[]>("/admin/hosts"),
     updateHost: (id: string, patch: { disabled?: boolean; role?: "admin" | "host" }) =>
       json<{ id: string; role: string; disabled: boolean }>(`/admin/hosts/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
     invites: () => json<Invite[]>("/admin/invites"),
-    createInvite: (note: string | null, days: number) =>
-      json<Invite & { token: string }>("/admin/invites", { method: "POST", body: JSON.stringify({ note, days }) }),
+    createInvite: (input: { note: string | null; email: string | null; days: number }) =>
+      json<Invite & { token: string }>("/admin/invites", { method: "POST", body: JSON.stringify(input) }),
     revokeInvite: (id: string) => json<null>(`/admin/invites/${id}`, { method: "DELETE" }),
   },
 

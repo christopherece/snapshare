@@ -112,10 +112,16 @@ In `apps/mobile/.env`: `EXPO_PUBLIC_API_URL=https://snap.topitsolutions.co.nz`, 
 ## Who can host events
 
 Registration is **invite-only** (`REGISTRATION=invite`). The account in `ADMIN_EMAIL` is made admin on
-every start; on a brand-new install the first account to register becomes admin.
+every start; on a brand-new install the first account to register becomes admin. Each customer account
+can create **one event** (`HOST_EVENT_LIMIT`); admins are unlimited.
 
-Admins get a **Team** page in the dashboard: create single-use invite links (1–30 days), see every host
-and their event count, disable an account (signs them out immediately), or make someone admin.
+Admins get an **Admin** page in the dashboard:
+
+- **Events** — every customer's event: open it (full photo management, download, QR, slideshow), edit
+  its details, **suspend/restore** it (offline for guests, the slideshow and the customer), or delete it.
+- **Customers** — accounts and their event counts; disable (signs them out immediately) or make admin.
+- **Invites** — create a single-use link for a customer's name + email (only that email can use it),
+  copy it or click **Email invite** to send it from your mail app; revoke pending invites.
 
 ## Updating
 

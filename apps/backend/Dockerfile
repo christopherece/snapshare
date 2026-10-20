@@ -43,9 +43,9 @@ COPY packages/shared packages/shared
 COPY apps/web-host apps/web-host
 COPY apps/web-slideshow apps/web-slideshow
 COPY apps/web-guest apps/web-guest
-RUN cd apps/web-host && bun build ./index.html --outdir /static/host --minify --public-path /host/ \
- && cd ../web-slideshow && bun build ./index.html --outdir /static/slideshow --minify --public-path /slideshow/ \
- && cd ../web-guest && bun build ./index.html --outdir /static/join --minify --public-path /join/
+RUN cd apps/web-host && bun build ./index.html --outdir /static/host --production --public-path /host/ \
+ && cd ../web-slideshow && bun build ./index.html --outdir /static/slideshow --production --public-path /slideshow/ \
+ && cd ../web-guest && bun build ./index.html --outdir /static/join --production --public-path /join/
 
 # ─── 3. Runtime ───
 FROM bun-base AS runtime

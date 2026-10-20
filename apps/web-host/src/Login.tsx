@@ -1,8 +1,10 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { type AuthConfig, api } from "./api";
+import { type AuthConfig, type InviteInfo, api } from "./api";
 
 export function Login({ inviteToken, onAuthed }: { inviteToken: string | null; onAuthed: (token: string) => void }) {
   const [config, setConfig] = useState<AuthConfig | null>(null);
+  const [invite, setInvite] = useState<InviteInfo | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [mode, setMode] = useState<"login" | "register">(inviteToken ? "register" : "login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -20,7 +22,24 @@ export function Login({ inviteToken, onAuthed }: { inviteToken: string | null; o
     );
   }, []);
 
-  const canRegister = !!inviteToken || config?.setupRequired || config?.registration === "open";
+  // Invite links: greet the customer and pre-fill (and lock) the email the invite was made for.
+  useEffect(() => {
+    if (!inviteToken) return;
+    api.inviteInfo(inviteToken).then(
+      (info) => {
+        setInvite(info);
+        if (info.email) setEmail(info.email);
+        if (info.note) setName(info.note);
+      },
+      (e) => {
+        setInviteError(e.message);
+        setMode("login");
+      },
+    );
+  }, [inviteToken]);
+
+  const usableInvite = !!inviteToken && !inviteError;
+  const canRegister = usableInvite || config?.setupRequired || config?.registration === "open";
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -28,7 +47,9 @@ export function Login({ inviteToken, onAuthed }: { inviteToken: string | null; o
     setError(null);
     try {
       const res =
-        mode === "login" ? await api.login(email, password) : await api.register(name, email, password, inviteToken);
+        mode === "login"
+          ? await api.login(email, password)
+          : await api.register(name, email, password, usableInvite ? inviteToken : null);
       onAuthed(res.token);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -42,9 +63,9 @@ export function Login({ inviteToken, onAuthed }: { inviteToken: string | null; o
       ? "Welcome back"
       : config?.setupRequired
         ? "Create the admin account"
-        : inviteToken
-          ? "You're invited to host"
-          : "Create your host account";
+        : usableInvite
+          ? "You're invited"
+          : "Create your account";
 
   return (
     <div className="auth">
@@ -54,8 +75,11 @@ export function Login({ inviteToken, onAuthed }: { inviteToken: string | null; o
         <p className="muted">
           {config?.setupRequired && mode === "register"
             ? "This is a new install — the first account manages who else can host events."
-            : "Collect every guest's photos, live, in one place."}
+            : usableInvite && mode === "register"
+              ? "Create your account to set up your event. Guests will scan a QR code to share their photos live."
+              : "Collect every guest's photos, live, in one place."}
         </p>
+        {inviteError && <p className="notice warn">{inviteError}. Ask the organiser for a new link, or sign in below.</p>}
 
         {mode === "register" && (
           <label>
@@ -65,10 +89,17 @@ export function Login({ inviteToken, onAuthed }: { inviteToken: string | null; o
         )}
         <label>
           Email
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+            readOnly={mode === "register" && !!invite?.email}
+          />
         </label>
         <label>
-          Password
+          {mode === "register" ? "Choose a password (8+ characters)" : "Password"}
           <input
             type="password"
             value={password}

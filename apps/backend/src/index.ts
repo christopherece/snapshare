@@ -33,11 +33,19 @@ const app = new Hono()
 if (env.STATIC_DIR) {
   const dir = env.STATIC_DIR;
   app.get("/", (c) => c.redirect("/host/"));
+  // Bundled JS/CSS have content-hashed names, so browsers may keep them forever; the HTML shell
+  // must always be revalidated so a new deploy is picked up immediately.
+  const cacheHeaders = (path: string, c: { header: (k: string, v: string) => void }) =>
+    c.header("Cache-Control", path.endsWith(".html") ? "no-cache" : "public, max-age=31536000, immutable");
+
   for (const name of ["join", "host", "slideshow"]) {
     app.get(`/${name}`, (c) => c.redirect(`/${name}/${new URL(c.req.url).search}`));
-    app.use(`/${name}/*`, serveStatic({ root: dir }));
+    app.use(`/${name}/*`, serveStatic({ root: dir, onFound: cacheHeaders }));
     // Unknown paths fall back to the app shell (the dashboard uses hash routing).
-    app.get(`/${name}/*`, serveStatic({ root: dir, rewriteRequestPath: () => `/${name}/index.html` }));
+    app.get(
+      `/${name}/*`,
+      serveStatic({ root: dir, rewriteRequestPath: () => `/${name}/index.html`, onFound: cacheHeaders }),
+    );
   }
 }
 

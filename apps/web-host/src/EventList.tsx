@@ -1,11 +1,11 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { type HostEvent, api } from "./api";
+import { type HostEvent, type Me, api } from "./api";
 import { navigate } from "./router";
 
 const fmtDate = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : null;
 
-export function EventList() {
+export function EventList({ me }: { me: Me | null }) {
   const [events, setEvents] = useState<HostEvent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -14,19 +14,31 @@ export function EventList() {
     api.events().then(setEvents, (e) => setError(e.message));
   }, []);
 
+  const atLimit = !!me && me.eventLimit !== null && (events?.length ?? 0) >= me.eventLimit;
+  const canCreate = !!me && !!events && !atLimit;
+
+  // A customer with their one event goes straight to it.
+  useEffect(() => {
+    if (me?.eventLimit === 1 && events?.length === 1 && !events[0]!.suspended) navigate(`/events/${events[0]!.id}`);
+  }, [me, events]);
+
   return (
     <>
       <div className="page-head">
         <div>
-          <p className="kicker">Your events</p>
-          <h1>Events</h1>
+          <p className="kicker">{me?.role === "admin" ? "Your events" : "Welcome"}</p>
+          <h1>{me?.eventLimit === 1 ? "Your event" : "Events"}</h1>
         </div>
-        {!creating && (
+        {canCreate && !creating && (
           <button className="btn primary" onClick={() => setCreating(true)}>
             + New event
           </button>
         )}
       </div>
+
+      {atLimit && events?.some((e) => e.suspended) && (
+        <p className="notice warn">Your event has been suspended. Please contact the organiser.</p>
+      )}
 
       {creating && (
         <CreateEvent
@@ -39,14 +51,23 @@ export function EventList() {
       {!events && !error && <p className="muted">Loading…</p>}
       {events?.length === 0 && !creating && (
         <div className="empty-card">
-          <h2>No events yet</h2>
-          <p className="muted">Create your first event to get a QR code guests can scan.</p>
+          <h2>{me?.eventLimit === 1 ? "Set up your event" : "No events yet"}</h2>
+          <p className="muted">Create your event to get a QR code guests can scan.</p>
+          {canCreate && (
+            <button className="btn primary" onClick={() => setCreating(true)} style={{ marginTop: 16 }}>
+              Create my event
+            </button>
+          )}
         </div>
       )}
 
       <div className="event-grid">
         {events?.map((e) => (
-          <a key={e.id} href={`#/events/${e.id}`} className="event-card">
+          <a
+            key={e.id}
+            href={e.suspended ? undefined : `#/events/${e.id}`}
+            className={`event-card ${e.suspended ? "suspended" : ""}`}
+          >
             <div className="event-card-top">
               <h2>{e.name}</h2>
               {!!e.pendingCount && <span className="badge accent">{e.pendingCount} to review</span>}
@@ -59,7 +80,11 @@ export function EventList() {
                 <strong>{e.photoCount ?? 0}</strong> photos
               </span>
               <span className="code">{e.slug.toUpperCase()}</span>
-              {!e.uploadsOpen && <span className="badge">Closed</span>}
+              {e.suspended ? (
+                <span className="badge danger">Suspended</span>
+              ) : (
+                !e.uploadsOpen && <span className="badge">Closed</span>
+              )}
             </div>
           </a>
         ))}

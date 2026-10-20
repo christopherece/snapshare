@@ -45,7 +45,7 @@ export const authRoutes = new Hono<AppEnv>()
       let inviteId: string | null = null;
       if (input.invite) {
         const [invite] = await tx
-          .select({ id: schema.hostInvites.id })
+          .select({ id: schema.hostInvites.id, email: schema.hostInvites.email })
           .from(schema.hostInvites)
           .where(
             and(
@@ -56,6 +56,9 @@ export const authRoutes = new Hono<AppEnv>()
           )
           .for("update");
         if (!invite) throw new HTTPException(403, { message: "This invite link is invalid, used, or expired" });
+        if (invite.email && invite.email !== input.email) {
+          throw new HTTPException(403, { message: `This invite is for ${invite.email}` });
+        }
         inviteId = invite.id;
       } else if (!firstAccount && env.REGISTRATION !== "open") {
         throw new HTTPException(403, { message: "Registration is invite-only. Ask the organiser for an invite link." });
@@ -89,7 +92,24 @@ export const authRoutes = new Hono<AppEnv>()
     return c.json({ token: await signHostToken(host.id), host: publicHost(host) });
   })
 
-  .get("/me", requireHost, (c) => c.json(publicHost(c.get("host"))));
+  /** Lets the sign-up page greet the invitee and pre-fill (and lock) their email. */
+  .get("/invite/:token", async (c) => {
+    const invite = await db.query.hostInvites.findFirst({
+      where: and(
+        eq(schema.hostInvites.tokenHash, hashToken(c.req.param("token"))),
+        isNull(schema.hostInvites.usedAt),
+        gt(schema.hostInvites.expiresAt, new Date()),
+      ),
+      columns: { note: true, email: true, expiresAt: true },
+    });
+    if (!invite) throw new HTTPException(404, { message: "This invite link is invalid, used, or expired" });
+    return c.json(invite);
+  })
+
+  .get("/me", requireHost, (c) => {
+    const host = c.get("host");
+    return c.json({ ...publicHost(host), eventLimit: host.role === "admin" ? null : env.HOST_EVENT_LIMIT });
+  });
 
 /**
  * Make sure someone can administer the install:

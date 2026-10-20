@@ -1,33 +1,51 @@
 import type { PhotoDTO, WsServerMessage } from "@snapshare/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { type HostEvent, type PhotoFilter, api, wsUrl } from "./api";
+import { type HostEvent, type Me, type PhotoFilter, api, wsUrl } from "./api";
 
 const matches = (p: PhotoDTO, f: PhotoFilter) =>
   f === "all" || (f === "favorites" ? p.isFavorite : p.moderation === f);
 
-export function EventPage({ eventId, token }: { eventId: string; token: string }) {
+export function EventPage({ eventId, token, me }: { eventId: string; token: string; me: Me | null }) {
   const [event, setEvent] = useState<HostEvent | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refreshEvent = useCallback(() => api.event(eventId).then(setEvent, (e) => setError(e.message)), [eventId]);
   useEffect(() => void refreshEvent(), [refreshEvent]);
 
-  if (error) return <p className="error">{error}</p>;
+  if (error) return <p className="notice warn">{error}</p>;
   if (!event) return <p className="muted">Loading…</p>;
+
+  const isAdmin = me?.role === "admin";
+  const managingOthers = isAdmin && event.owner && event.owner.id !== me?.id;
+  const single = me?.eventLimit === 1;
 
   return (
     <>
       <div className="page-head">
         <div>
-          <a href="#/" className="back">
-            ← All events
-          </a>
+          {!single && (
+            <a href={managingOthers ? "#/admin/events" : "#/"} className="back">
+              ← {managingOthers ? "All customer events" : "All events"}
+            </a>
+          )}
           <h1>{event.name}</h1>
           <p className="muted">
             {[event.startsAt && new Date(event.startsAt).toLocaleDateString(), event.location].filter(Boolean).join(" · ")}
           </p>
         </div>
       </div>
+
+      {managingOthers && (
+        <p className="notice">
+          You're managing <strong>{event.owner!.name}</strong>'s event ({event.owner!.email}) as admin.
+        </p>
+      )}
+      {event.suspended && (
+        <p className="notice warn">
+          This event is <strong>suspended</strong>: guests, the slideshow and the customer can't access it. Restore it from
+          Admin → Events.
+        </p>
+      )}
 
       <div className="event-layout">
         <aside className="side">

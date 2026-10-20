@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 
+export type AdminTab = "events" | "customers" | "invites";
+
 export type Route =
   | { page: "events" }
   | { page: "event"; id: string }
-  | { page: "team" }
+  | { page: "admin"; tab: AdminTab }
   | { page: "invite"; token: string };
 
-/** Tiny hash router: #/  #/events/<id>  #/team  #/invite/<token> */
+/** Tiny hash router: #/  #/events/<id>  #/admin/<tab>  #/invite/<token> */
 export function useRoute(): Route {
   const [hash, setHash] = useState(location.hash);
   useEffect(() => {
@@ -18,7 +20,11 @@ export function useRoute(): Route {
   if (event) return { page: "event", id: event[1]! };
   const invite = hash.match(/^#\/invite\/([\w-]+)/);
   if (invite) return { page: "invite", token: invite[1]! };
-  if (hash.startsWith("#/team")) return { page: "team" };
+  const admin = hash.match(/^#\/(?:admin|team)(?:\/(\w+))?/);
+  if (admin) {
+    const tab = admin[1] === "customers" || admin[1] === "invites" ? admin[1] : "events";
+    return { page: "admin", tab };
+  }
   return { page: "events" };
 }
 
