@@ -4,7 +4,9 @@
 # ─── 1. Dependencies (backend + web apps only — skips the Expo/mobile tree) ───
 FROM oven/bun:1.4 AS deps
 WORKDIR /app
-COPY package.json bun.lock bunfig.toml ./
+# bunfig.toml is deliberately not copied: its hoisted-linker setting only matters for the Expo app,
+# and skipping it avoids a Bun config-parse failure seen on some VPS CPUs.
+COPY package.json bun.lock ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/backend/package.json apps/backend/
 COPY apps/web-host/package.json apps/web-host/

@@ -5,6 +5,7 @@
 !**/.env.example
 .git
 .expo
+bunfig.toml
 **/*.log
 
 # Mobile source isn't part of the server image — only its manifest (for the lockfile).
