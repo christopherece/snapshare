@@ -3,9 +3,9 @@ import { z } from "zod";
 const schema = z.object({
   PORT: z.coerce.number().default(3000),
   PUBLIC_APP_URL: z.string().url(),
-  /** What the QR code encodes — must be http(s) so any phone camera can open it. */
-  GUEST_JOIN_URL: z.string().default("http://localhost:3000/join/{slug}"),
-  /** Where the join page sends guests: the native app (or Expo Go in dev). */
+  /** What the QR code encodes: the guest web app. Must be http(s) so any phone camera can open it. */
+  GUEST_JOIN_URL: z.string().default("http://localhost:5175/join/{slug}"),
+  /** Where the "open in app" page (/open/:slug) sends guests: the native app (or Expo Go in dev). */
   APP_LINK_TEMPLATE: z.string().default("snapshare://join/{slug}"),
   SLIDESHOW_URL: z.string().url(),
 

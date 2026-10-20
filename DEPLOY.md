@@ -1,7 +1,7 @@
 # Deploying SnapShare to a VPS (Docker + nginx)
 
 ```
- phones / TV ──HTTPS──► nginx (host) ─┬─► snap.example.com  → backend  127.0.0.1:3030  (API, WS, /host, /slideshow, /join)
+ phones / TV ──HTTPS──► nginx (host) ─┬─► snap.example.com  → backend  127.0.0.1:3030  (API, WS, /join guest app, /host, /slideshow)
                                       └─► media.example.com → RustFS   127.0.0.1:9000  (uploads, photos)
                                             Postgres stays inside Docker (not exposed)
 ```
@@ -52,13 +52,15 @@ sudo certbot --nginx -d YOUR-APP-DOMAIN -d YOUR-MEDIA-DOMAIN
 ## 5. Check it
 
 - `https://YOUR-APP-DOMAIN/host` → create your host account and an event.
-- Scan the event QR code with a phone → the join page opens.
+- Scan the event QR code with a phone → the guest web app opens (`/join/<code>`), with the live camera.
 - Open the slideshow from the dashboard on a TV/laptop.
 
-## 6. Point the mobile app at production
+Guests need nothing installed. The native app is optional.
+
+## 6. (Optional) Native app
 
 In `apps/mobile/.env`: `EXPO_PUBLIC_API_URL=https://YOUR-APP-DOMAIN`, then build the app with EAS
-(`bunx eas build`). Expo Go is only for development.
+(`bunx eas build`). The guest web app links to it via `/open/<code>` (`APP_LINK_TEMPLATE`).
 
 ## Updating
 

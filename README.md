@@ -8,6 +8,7 @@ apps/
   mobile/          Expo (SDK 54) guest app — camera, offline upload queue, live feed
   web-slideshow/   Full-screen live slideshow for TVs/projectors (Bun HTML bundler, no framework)
   web-host/        Host dashboard (React): events, QR flyer, moderation, ZIP download
+  web-guest/       Guest web app (React) — what QR codes open: camera, offline queue, live feed. No install.
 packages/
   shared/          DTO + WebSocket message types shared by all apps
 ```
@@ -24,6 +25,7 @@ bun run db:migrate                         # create tables (migrations in apps/b
 
 bun run dev:backend      # http://localhost:3000
 bun run dev:host         # http://localhost:5174 — host dashboard
+bun run dev:guest        # http://localhost:5175/join/<code> — guest web app (QR codes point here)
 bun run dev:slideshow    # http://localhost:5173/?event=<id>&key=<displayKey>
 bun run dev:mobile       # Expo dev server (SDK 57 — matches the store build of Expo Go)
 ```
@@ -92,7 +94,15 @@ Single-instance by design for now. When you need more than one backend replica:
 - WebSocket fan-out → Redis pub/sub or Postgres `LISTEN/NOTIFY` bridge (`realtime/hub.ts`)
 - Media queue → BullMQ (`media/queue.ts` — same `enqueue()` interface)
 
+## Guest web app notes
+
+- The live in-browser viewfinder needs HTTPS (or localhost). Over plain http on a LAN, guests get the
+  "Take a photo" button instead, which opens the phone's own camera app — uploads work the same either way.
+- Uploads are compressed in the browser (≤2560 px JPEG, EXIF/GPS stripped), kept in IndexedDB until
+  confirmed, and retried automatically when the connection returns.
+- HEIC files the browser can't decode are uploaded as-is and may fail server-side processing
+  (iOS normally hands browsers JPEGs, so this is rare).
+
 ## Not built yet
 
-- Guest PWA fallback (the feed + upload endpoints are already browser-friendly with CORS)
 - Event cover images, guest blocking UI (API exists: `POST /api/host/guests/:id/block`)

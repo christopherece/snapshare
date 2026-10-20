@@ -29,7 +29,7 @@ services:
     ports: ["127.0.0.1:${S3_PORT:-9000}:9000"]
     volumes: [s3data:/data]
 
-  # One-shot: create the bucket and make processed renditions (public/*) world-readable.
+  # One-shot: create the bucket, make processed renditions (public/*) world-readable, allow browser uploads.
   s3-init:
     image: amazon/aws-cli:latest
     depends_on: [s3]
@@ -46,6 +46,8 @@ services:
         until aws --endpoint-url http://s3:9000 s3api list-buckets >/dev/null 2>&1; do sleep 1; done
         aws --endpoint-url http://s3:9000 s3api create-bucket --bucket "$$BUCKET" 2>/dev/null || true
         aws --endpoint-url http://s3:9000 s3api put-bucket-policy --bucket "$$BUCKET" --policy "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"AWS\":[\"*\"]},\"Action\":[\"s3:GetObject\"],\"Resource\":[\"arn:aws:s3:::$$BUCKET/public/*\"]}]}"
+        # The guest web app uploads straight to storage from the browser (presigned PUT) — needs CORS.
+        aws --endpoint-url http://s3:9000 s3api put-bucket-cors --bucket "$$BUCKET" --cors-configuration '{"CORSRules":[{"AllowedOrigins":["*"],"AllowedMethods":["PUT","GET","HEAD"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]}'
         echo "bucket ready"
 
   backend:

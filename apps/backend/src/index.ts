@@ -20,17 +20,18 @@ const app = new Hono()
   .use(secureHeaders({ crossOriginResourcePolicy: false }))
   .use("/api/*", cors({ origin: "*", allowHeaders: ["Authorization", "Content-Type", "X-Guest-Token"] }))
   .get("/health", (c) => c.json({ ok: true }))
-  .route("/join", joinPage)
+  .route("/open", joinPage)
   .route("/api/auth", authRoutes)
   .route("/api/host", hostRoutes)
   .route("/api/downloads", downloadRoutes)
   .route("/api", guestRoutes);
 
-// Production: serve the built dashboard (/host) and slideshow (/slideshow) from this same origin.
+// Production: serve the built guest app (/join/<code> — what QR codes point at), host dashboard
+// (/host) and slideshow (/slideshow) from this same origin.
 if (env.STATIC_DIR) {
   const dir = env.STATIC_DIR;
   app.get("/", (c) => c.redirect("/host/"));
-  for (const name of ["host", "slideshow"]) {
+  for (const name of ["join", "host", "slideshow"]) {
     app.get(`/${name}`, (c) => c.redirect(`/${name}/${new URL(c.req.url).search}`));
     app.use(`/${name}/*`, serveStatic({ root: dir }));
     // Unknown paths fall back to the app shell (the dashboard uses hash routing).

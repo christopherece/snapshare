@@ -1,4 +1,4 @@
-# Production image: Bun API + built host dashboard + built slideshow.
+# Production image: Bun API + built guest web app, host dashboard and slideshow.
 # Build from the repo root:  docker build -f apps/backend/Dockerfile .
 
 # ─── 1. Dependencies (backend + web apps only — skips the Expo/mobile tree) ───
@@ -9,20 +9,24 @@ COPY packages/shared/package.json packages/shared/
 COPY apps/backend/package.json apps/backend/
 COPY apps/web-host/package.json apps/web-host/
 COPY apps/web-slideshow/package.json apps/web-slideshow/
+COPY apps/web-guest/package.json apps/web-guest/
 # The mobile manifest must exist for the lockfile to resolve, but its deps are filtered out.
 COPY apps/mobile/package.json apps/mobile/
 RUN bun install --frozen-lockfile \
       --filter '@snapshare/backend' \
       --filter '@snapshare/web-host' \
-      --filter '@snapshare/web-slideshow'
+      --filter '@snapshare/web-slideshow' \
+      --filter '@snapshare/web-guest'
 
 # ─── 2. Build the static web apps ───
 FROM deps AS web
 COPY packages/shared packages/shared
 COPY apps/web-host apps/web-host
 COPY apps/web-slideshow apps/web-slideshow
+COPY apps/web-guest apps/web-guest
 RUN cd apps/web-host && bun build ./index.html --outdir /static/host --minify --public-path /host/ \
- && cd ../web-slideshow && bun build ./index.html --outdir /static/slideshow --minify --public-path /slideshow/
+ && cd ../web-slideshow && bun build ./index.html --outdir /static/slideshow --minify --public-path /slideshow/ \
+ && cd ../web-guest && bun build ./index.html --outdir /static/join --minify --public-path /join/
 
 # ─── 3. Runtime ───
 FROM oven/bun:1.4 AS runtime

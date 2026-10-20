@@ -62,6 +62,20 @@
         "typescript": "~6.0.3",
       },
     },
+    "apps/web-guest": {
+      "name": "@snapshare/web-guest",
+      "version": "0.1.0",
+      "dependencies": {
+        "@snapshare/shared": "workspace:*",
+        "react": "19.2.3",
+        "react-dom": "19.2.3",
+      },
+      "devDependencies": {
+        "@types/react": "~19.2.4",
+        "@types/react-dom": "~19.2.3",
+        "typescript": "~6.0.3",
+      },
+    },
     "apps/web-host": {
       "name": "@snapshare/web-host",
       "version": "0.1.0",
@@ -529,6 +543,8 @@
     "@snapshare/mobile": ["@snapshare/mobile@workspace:apps/mobile"],
 
     "@snapshare/shared": ["@snapshare/shared@workspace:packages/shared"],
+
+    "@snapshare/web-guest": ["@snapshare/web-guest@workspace:apps/web-guest"],
 
     "@snapshare/web-host": ["@snapshare/web-host@workspace:apps/web-host"],
 
@@ -1431,6 +1447,8 @@
     "@react-native/metro-config/metro-runtime": ["metro-runtime@0.87.1", "", { "dependencies": { "@babel/runtime": "^7.25.0", "flow-enums-runtime": "^0.0.6" } }, "sha512-kjeuSvInsM6OzBjkCQsWxnkrKZFMKtnkCl38oXWRI9lDGs2L9hGs9Tak9sQYJ9h3gtDujneB7wZio+irgqJKDw=="],
 
     "@snapshare/mobile/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
+
+    "@snapshare/web-guest/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
     "@snapshare/web-host/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 

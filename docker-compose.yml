@@ -38,6 +38,8 @@ services:
         until aws --endpoint-url http://s3:9000 s3api list-buckets >/dev/null 2>&1; do sleep 1; done
         aws --endpoint-url http://s3:9000 s3api create-bucket --bucket snapshare-media 2>/dev/null || true
         aws --endpoint-url http://s3:9000 s3api put-bucket-policy --bucket snapshare-media --policy '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::snapshare-media/public/*"]}]}'
+        # Browsers (guest web app) upload straight to storage with presigned PUTs.
+        aws --endpoint-url http://s3:9000 s3api put-bucket-cors --bucket snapshare-media --cors-configuration '{"CORSRules":[{"AllowedOrigins":["*"],"AllowedMethods":["PUT","GET","HEAD"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3600}]}'
         echo "bucket ready"
 
 volumes:

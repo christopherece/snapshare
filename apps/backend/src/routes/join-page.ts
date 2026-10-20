@@ -4,10 +4,10 @@ import { db, schema } from "../db/client.ts";
 import { env } from "../env.ts";
 
 /**
- * GET /join/:slug — what the QR code points at.
+ * GET /open/:slug — hand-off page for guests who have the native app.
+ * (QR codes point at the guest web app, /join/:slug, which links here.)
  *
- * A plain https/http URL is the only thing every phone camera can open. This page
- * then hands off to the app via APP_LINK_TEMPLATE:
+ * Opens the app via APP_LINK_TEMPLATE:
  *   dev (Expo Go):  exp://<LAN-IP>:8081/--/join/{slug}
  *   production:     snapshare://join/{slug}  (or a universal link)
  * and always shows the event code as a manual fallback.
