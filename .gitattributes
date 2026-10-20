@@ -1,0 +1,5 @@
+# Store text files with LF endings — the deploy target (VPS/Docker) is Linux.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.webp binary

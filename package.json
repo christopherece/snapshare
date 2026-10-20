@@ -1,0 +1,14 @@
+{
+  "name": "snapshare",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev:backend": "bun --cwd apps/backend dev",
+    "dev:mobile": "bun --cwd apps/mobile start",
+    "dev:slideshow": "bun --cwd apps/web-slideshow dev",
+    "dev:host": "bun --cwd apps/web-host dev",
+    "db:generate": "bun --cwd apps/backend db:generate",
+    "db:migrate": "bun --cwd apps/backend db:migrate",
+    "typecheck": "bun --filter '*' typecheck"
+  }
+}

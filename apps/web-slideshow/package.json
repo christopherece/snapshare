@@ -1,0 +1,18 @@
+{
+  "name": "@snapshare/web-slideshow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch serve.ts",
+    "build": "bun build ./index.html --outdir dist --minify",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@snapshare/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.22",
+    "typescript": "^5.9.3"
+  }
+}

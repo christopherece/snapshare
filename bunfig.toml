@@ -1,0 +1,3 @@
+[install]
+# React Native / Metro expects a flat (hoisted) node_modules — Bun's isolated linker causes duplicate native modules.
+linker = "hoisted"

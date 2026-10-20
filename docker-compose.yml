@@ -1,0 +1,45 @@
+# Local dev infrastructure: Postgres + RustFS (S3-compatible storage; MinIO no longer ships public images).
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: snapshare
+      POSTGRES_PASSWORD: snapshare
+      POSTGRES_DB: snapshare
+    ports: ["5433:5432"] # 5433 on the host to avoid clashing with a locally installed Postgres
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U snapshare"]
+      interval: 2s
+      retries: 20
+
+  s3:
+    image: rustfs/rustfs:latest
+    environment:
+      RUSTFS_ACCESS_KEY: snapshare
+      RUSTFS_SECRET_KEY: snapshare-secret
+      RUSTFS_CONSOLE_ENABLE: "true"
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [s3data:/data]
+
+  # Creates the bucket and makes processed renditions (public/*) world-readable.
+  s3-init:
+    image: amazon/aws-cli:latest
+    depends_on: [s3]
+    restart: on-failure
+    environment:
+      AWS_ACCESS_KEY_ID: snapshare
+      AWS_SECRET_ACCESS_KEY: snapshare-secret
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        until aws --endpoint-url http://s3:9000 s3api list-buckets >/dev/null 2>&1; do sleep 1; done
+        aws --endpoint-url http://s3:9000 s3api create-bucket --bucket snapshare-media 2>/dev/null || true
+        aws --endpoint-url http://s3:9000 s3api put-bucket-policy --bucket snapshare-media --policy '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::snapshare-media/public/*"]}]}'
+        echo "bucket ready"
+
+volumes:
+  pgdata:
+  s3data:

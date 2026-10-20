@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SnapShare Live</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <main id="stage" aria-live="polite">
+      <div class="layer" data-layer="a"><div class="backdrop"></div><img alt="" /></div>
+      <div class="layer" data-layer="b"><div class="backdrop"></div><img alt="" /></div>
+
+      <section id="empty" class="empty" hidden>
+        <p class="kicker">Share your photos</p>
+        <h1 class="event-name"></h1>
+        <div class="qr qr-large"></div>
+        <p class="hint">Scan with your phone camera, snap away, and watch them appear here live.</p>
+      </section>
+
+      <footer class="hud">
+        <div class="caption">
+          <span class="event-name"></span>
+          <span id="credit"></span>
+        </div>
+        <div class="join">
+          <div class="qr qr-small"></div>
+          <span>Scan to share<br />your photos</span>
+        </div>
+      </footer>
+
+      <div id="toast" class="toast" hidden></div>
+      <div id="status" class="status" hidden>Reconnecting…</div>
+    </main>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

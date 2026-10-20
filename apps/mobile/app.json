@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "SnapShare",
+    "slug": "snapshare",
+    "scheme": "snapshare",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.snapshare.app",
+      "associatedDomains": [
+        "applinks:snapshare.app"
+      ]
+    },
+    "android": {
+      "package": "com.snapshare.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "snapshare.app",
+              "pathPrefix": "/join"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "SnapShare uses your camera so you can take photos and share them with the event.",
+          "recordAudioAndroid": false
+        }
+      ],
+      "expo-image",
+      "expo-status-bar"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
