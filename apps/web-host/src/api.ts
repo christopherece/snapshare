@@ -37,6 +37,37 @@ export interface EventInput {
 
 export type PhotoFilter = "all" | "pending" | "favorites" | "hidden";
 
+export interface Me {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "host";
+}
+
+export interface AuthConfig {
+  registration: "invite" | "open";
+  setupRequired: boolean;
+}
+
+export interface HostAccount {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "host";
+  disabled: boolean;
+  isMe: boolean;
+  eventCount: number;
+  createdAt: string;
+}
+
+export interface Invite {
+  id: string;
+  note: string | null;
+  expiresAt: string;
+  createdAt: string;
+  token?: string;
+}
+
 const TOKEN_KEY = "snapshare.hostToken";
 
 export const tokenStore = {
@@ -89,8 +120,23 @@ async function json<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   login: (email: string, password: string) =>
     json<{ token: string }>("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
-  register: (name: string, email: string, password: string) =>
-    json<{ token: string }>("/auth/register", { method: "POST", body: JSON.stringify({ name, email, password }) }),
+  register: (name: string, email: string, password: string, invite?: string | null) =>
+    json<{ token: string }>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ name, email, password, ...(invite && { invite }) }),
+    }),
+  authConfig: () => json<AuthConfig>("/auth/config"),
+  me: () => json<Me>("/auth/me"),
+
+  admin: {
+    hosts: () => json<HostAccount[]>("/admin/hosts"),
+    updateHost: (id: string, patch: { disabled?: boolean; role?: "admin" | "host" }) =>
+      json<{ id: string; role: string; disabled: boolean }>(`/admin/hosts/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+    invites: () => json<Invite[]>("/admin/invites"),
+    createInvite: (note: string | null, days: number) =>
+      json<Invite & { token: string }>("/admin/invites", { method: "POST", body: JSON.stringify({ note, days }) }),
+    revokeInvite: (id: string) => json<null>(`/admin/invites/${id}`, { method: "DELETE" }),
+  },
 
   events: () => json<HostEvent[]>("/host/events"),
   event: (id: string) => json<HostEvent>(`/host/events/${id}`),

@@ -109,6 +109,14 @@ Guests need nothing installed. The native app is optional.
 In `apps/mobile/.env`: `EXPO_PUBLIC_API_URL=https://snap.topitsolutions.co.nz`, then build the app with EAS
 (`bunx eas build`). The guest web app links to it via `/open/<code>` (`APP_LINK_TEMPLATE`).
 
+## Who can host events
+
+Registration is **invite-only** (`REGISTRATION=invite`). The account in `ADMIN_EMAIL` is made admin on
+every start; on a brand-new install the first account to register becomes admin.
+
+Admins get a **Team** page in the dashboard: create single-use invite links (1–30 days), see every host
+and their event count, disable an account (signs them out immediately), or make someone admin.
+
 ## Updating
 
 ```bash

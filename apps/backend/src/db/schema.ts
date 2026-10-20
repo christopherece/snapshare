@@ -25,12 +25,32 @@ const timestamps = {
 
 // ─── Hosts ──────────────────────────────────────────────────────────────────
 
+export const hostRole = pgEnum("host_role", ["admin", "host"]);
+
 export const hosts = pgTable("hosts", {
   id: uuid("id").primaryKey().defaultRandom(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   name: varchar("name", { length: 120 }).notNull(),
+  /** Admins manage host accounts and invites. */
+  role: hostRole("role").notNull().default("host"),
+  /** Disabled accounts can't sign in; existing sessions stop working immediately. */
+  disabledAt: timestamp("disabled_at", { withTimezone: true }),
   ...timestamps,
+});
+
+/** Single-use links that let someone create a host account when registration is invite-only. */
+export const hostInvites = pgTable("host_invites", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  /** SHA-256 of the invite token; the raw token is only shown once, to the admin who created it. */
+  tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(),
+  /** Who it's for — a reminder for the admin, e.g. "Sarah (wedding)". */
+  note: varchar("note", { length: 120 }),
+  createdBy: uuid("created_by").references(() => hosts.id, { onDelete: "set null" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
+  usedBy: uuid("used_by").references(() => hosts.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 // ─── Events ─────────────────────────────────────────────────────────────────

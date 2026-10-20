@@ -12,6 +12,11 @@ const schema = z.object({
   DATABASE_URL: z.string().url(),
   JWT_SECRET: z.string().min(32),
 
+  /** "invite" (default): new host accounts need an invite link from an admin. "open": anyone can sign up. */
+  REGISTRATION: z.enum(["invite", "open"]).default("invite"),
+  /** This host account is made admin on startup (comma-separate several). */
+  ADMIN_EMAIL: z.string().optional(),
+
   S3_ENDPOINT: z.string().url().optional(),
   /** Public endpoint used only to sign upload/download URLs (defaults to S3_ENDPOINT).
    *  In Docker: S3_ENDPOINT=http://s3:9000 (internal), this=https://media.example.com. */

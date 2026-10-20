@@ -9,7 +9,8 @@ import { db } from "./db/client.ts";
 import { env } from "./env.ts";
 import { mediaQueue, scheduleAbandonedUploadCleanup } from "./media/queue.ts";
 import { type WsData, attachServer, handleUpgrade, websocketHandlers } from "./realtime/hub.ts";
-import { authRoutes } from "./routes/auth.ts";
+import { adminRoutes } from "./routes/admin.ts";
+import { authRoutes, ensureAdmin } from "./routes/auth.ts";
 import { downloadRoutes } from "./routes/downloads.ts";
 import { guestRoutes } from "./routes/guest.ts";
 import { hostRoutes } from "./routes/host.ts";
@@ -23,6 +24,7 @@ const app = new Hono()
   .route("/open", joinPage)
   .route("/api/auth", authRoutes)
   .route("/api/host", hostRoutes)
+  .route("/api/admin", adminRoutes)
   .route("/api/downloads", downloadRoutes)
   .route("/api", guestRoutes);
 
@@ -53,6 +55,7 @@ if (env.RUN_MIGRATIONS) {
   await migrate(db, { migrationsFolder: `${import.meta.dir}/../drizzle` });
   console.log("Database migrations applied");
 }
+await ensureAdmin();
 
 const server = Bun.serve<WsData>({
   port: env.PORT,

@@ -4,12 +4,13 @@ import type { Context, MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { sign, verify } from "hono/jwt";
 import { db, schema } from "../db/client.ts";
-import type { Event, Guest } from "../db/schema.ts";
+import type { Event, Guest, Host } from "../db/schema.ts";
 import { env } from "../env.ts";
 
 export type AppEnv = {
   Variables: {
     hostId: string;
+    host: Host;
     guest: Guest;
   };
 };
@@ -54,14 +55,27 @@ function bearer(c: Context) {
 
 // ─── Middleware ─────────────────────────────────────────────────────────────
 
-/** Host dashboard routes: `Authorization: Bearer <jwt>`. */
+/** Host dashboard routes: `Authorization: Bearer <jwt>`. Checks the account still exists and isn't disabled. */
 export const requireHost: MiddlewareHandler<AppEnv> = async (c, next) => {
   const token = bearer(c);
   const hostId = token ? await verifyHostToken(token) : null;
-  if (!hostId) throw new HTTPException(401, { message: "Host authentication required" });
-  c.set("hostId", hostId);
+  const host = hostId ? await findActiveHost(hostId) : null;
+  if (!host) throw new HTTPException(401, { message: "Host authentication required" });
+  c.set("hostId", host.id);
+  c.set("host", host);
   await next();
 };
+
+/** Use after requireHost. */
+export const requireAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (c.get("host").role !== "admin") throw new HTTPException(403, { message: "Admins only" });
+  await next();
+};
+
+async function findActiveHost(id: string) {
+  const host = await db.query.hosts.findFirst({ where: eq(schema.hosts.id, id) });
+  return host && !host.disabledAt ? host : null;
+}
 
 /** Guest routes: `X-Guest-Token: <opaque token>` issued by POST /api/e/:slug/join. */
 export const requireGuest: MiddlewareHandler<AppEnv> = async (c, next) => {
@@ -95,7 +109,7 @@ export async function resolveViewer(
 ): Promise<Viewer | null> {
   if (creds.bearer) {
     const hostId = await verifyHostToken(creds.bearer);
-    if (hostId && hostId === event.hostId) return { role: "host", hostId };
+    if (hostId && hostId === event.hostId && (await findActiveHost(hostId))) return { role: "host", hostId };
   }
   if (creds.guestToken) {
     const guest = await findGuestByToken(creds.guestToken);
