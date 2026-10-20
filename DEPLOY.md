@@ -82,6 +82,20 @@ sudo nginx -t && sudo systemctl reload nginx
 sudo certbot --nginx -d snap.topitsolutions.co.nz -d snap-media.topitsolutions.co.nz
 ```
 
+### Using Nginx Proxy Manager instead
+
+NPM runs in Docker, so `127.0.0.1` inside it is NPM itself. In `.env` set `BIND_ADDRESS=172.17.0.1`
+(the Docker host's bridge address), run `docker compose -f docker-compose.prod.yml up -d`, then add two
+**Proxy Hosts**:
+
+| Domain | Scheme | Forward host | Port | Websockets | Advanced tab |
+|---|---|---|---|---|---|
+| `snap.topitsolutions.co.nz` | http | `172.17.0.1` | `3030` | **ON** | `proxy_buffering off;` `proxy_read_timeout 3600s;` |
+| `snap-media.topitsolutions.co.nz` | http | `172.17.0.1` | `9030` | off | `client_max_body_size 25m;` `proxy_request_buffering off;` |
+
+On each: **SSL** tab → *Request a new certificate* → enable **Force SSL** and **HTTP/2**.
+Check `ip -4 addr show docker0` shows `172.17.0.1`; if not, use that interface's address.
+
 ## 5. Check it
 
 - `https://snap.topitsolutions.co.nz/host` → create your host account and an event.
