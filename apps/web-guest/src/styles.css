@@ -186,6 +186,10 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
   animation: card-in 0.35s ease-out both;
 }
 .install-card img { border-radius: 11px; }
+.lowlight-icon {
+  width: 44px; height: 44px; display: grid; place-items: center; border-radius: 11px;
+  background: #1f1c3a; color: #ffd98a; font-size: 24px;
+}
 .install-copy { display: grid; gap: 2px; font-size: 14px; line-height: 1.35; }
 .install-copy span { color: rgba(255,255,255,0.7); font-size: 13px; }
 .install-copy b { color: #fff; font-weight: 600; }

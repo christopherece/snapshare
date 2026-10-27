@@ -1,5 +1,5 @@
-const MAX_EDGE = 2560;
-const QUALITY = 0.82;
+const MAX_EDGE = 4000; // print quality (≈ 12 MP); 3–5 MB per photo
+const QUALITY = 0.9;
 
 /** The photo couldn't be decoded on this device, so it isn't uploaded (never send an unprocessed original). */
 export class UnsupportedImageError extends Error {
@@ -26,7 +26,7 @@ async function decode(file: Blob): Promise<ImageBitmap> {
 }
 
 /**
- * Downscale to MAX_EDGE on the longest side and re-encode as JPEG (typically 0.8–2 MB),
+ * Downscale to MAX_EDGE on the longest side and re-encode as JPEG (typically 3–5 MB),
  * applying EXIF orientation. Re-encoding also strips EXIF (incl. GPS) before upload,
  * so a file we can't decode is rejected rather than uploaded as-is.
  */

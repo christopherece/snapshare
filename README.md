@@ -45,7 +45,7 @@ See **[DEPLOY.md](DEPLOY.md)**: one `docker compose -f docker-compose.prod.yml u
 ```
  Guest app                         Backend (Bun)                       S3 / R2
  ─────────                         ─────────────                       ───────
- shutter → compress (≤2560px JPEG)
+ shutter → compress (≤4000px JPEG)
  → persist to documents + queue
  GET /api/events/:id/upload-url ─► reserve photos row (idempotent on clientId)
                                 ◄─ presigned PUT URL
@@ -98,7 +98,7 @@ Single-instance by design for now. When you need more than one backend replica:
 
 - The live in-browser viewfinder needs HTTPS (or localhost). Over plain http on a LAN, guests get the
   "Take a photo" button instead, which opens the phone's own camera app — uploads work the same either way.
-- Uploads are compressed in the browser (≤2560 px JPEG, EXIF/GPS stripped), kept in IndexedDB until
+- Uploads are compressed in the browser (≤4000 px JPEG, EXIF/GPS stripped), kept in IndexedDB until
   confirmed, and retried automatically when the connection returns.
 - HEIC files the browser can't decode are uploaded as-is and may fail server-side processing
   (iOS normally hands browsers JPEGs, so this is rare).

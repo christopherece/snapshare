@@ -57,17 +57,50 @@ const isStandalone = () =>
   matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches ||
   (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
-/** How this guest can install: Android one-tap, iOS steps, or not at all (already installed / desktop). */
-export type InstallMode = "prompt" | "ios" | "ios-in-app" | null;
+/**
+ * How this guest can install:
+ *  - "store": the native app is published for their phone — best photos, one-tap camera (preferred)
+ *  - "prompt": Android one-tap web install; "ios" / "ios-in-app": Add to Home Screen steps
+ *  - null: already installed, or a desktop
+ */
+export type InstallMode = "store" | "prompt" | "ios" | "ios-in-app" | null;
 
 const isIos = () =>
   /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const isAndroid = () => /Android/i.test(navigator.userAgent);
 /** Instagram, Facebook, Messenger, LINE… open links in their own browser, which can't add to the home screen. */
 const isInAppBrowser = () => /FBAN|FBAV|Instagram|Line\/|Messenger|Snapchat|TikTok/i.test(navigator.userAgent);
 
+// Native app store links come from the server (/api/config), set once the app is published.
+let storeLinks: { appStoreUrl: string | null; playStoreUrl: string | null } = { appStoreUrl: null, playStoreUrl: null };
+
+export async function loadStoreLinks(apiUrl: string) {
+  try {
+    const res = await fetch(`${apiUrl}/api/config`);
+    if (!res.ok) return;
+    storeLinks = await res.json();
+    emit();
+  } catch {}
+}
+
+/** The native app's store page for this phone, if it's published. */
+export const storeUrlForThisPhone = () =>
+  isIos() ? storeLinks.appStoreUrl : isAndroid() ? storeLinks.playStoreUrl : null;
+
+const useStoreUrl = () =>
+  useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => listeners.delete(l);
+    },
+    storeUrlForThisPhone,
+  );
+
 export function useInstallMode(): InstallMode {
   const canPrompt = useCanInstall();
+  const storeUrl = useStoreUrl();
   if (isStandalone()) return null;
+  if (storeUrl) return "store";
   if (canPrompt) return "prompt";
   if (isIos()) return isInAppBrowser() ? "ios-in-app" : "ios";
   return null;
