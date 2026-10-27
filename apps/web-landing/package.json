@@ -1,0 +1,10 @@
+{
+  "name": "@snapshare/web-landing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch serve.ts",
+    "build": "bun build ./index.html --outdir dist --production --public-path /landing/"
+  }
+}

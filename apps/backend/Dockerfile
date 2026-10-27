@@ -31,6 +31,7 @@ COPY apps/backend/package.json apps/backend/
 COPY apps/web-host/package.json apps/web-host/
 COPY apps/web-slideshow/package.json apps/web-slideshow/
 COPY apps/web-guest/package.json apps/web-guest/
+COPY apps/web-landing/package.json apps/web-landing/
 # The mobile manifest must exist for the lockfile to resolve, but its deps are filtered out.
 COPY apps/mobile/package.json apps/mobile/
 # Older Bun (baseline mode) can't read Bun 1.4's lockfile, so it resolves within package.json ranges.
@@ -43,7 +44,9 @@ COPY packages/shared packages/shared
 COPY apps/web-host apps/web-host
 COPY apps/web-slideshow apps/web-slideshow
 COPY apps/web-guest apps/web-guest
-RUN cd apps/web-host && bun build ./index.html --outdir /static/host --production --public-path /host/ \
+COPY apps/web-landing apps/web-landing
+RUN cd apps/web-landing && bun build ./index.html --outdir /static/landing --production --public-path /landing/ \
+ && cd ../web-host && bun build ./index.html --outdir /static/host --production --public-path /host/ \
  && cd ../web-slideshow && bun build ./index.html --outdir /static/slideshow --production --public-path /slideshow/ \
  && cd ../web-guest && bun build ./index.html --outdir /static/join --production --splitting --public-path /join/
 
