@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { Camera } from "./Camera";
 import { Feed } from "./Feed";
 import { Join } from "./Join";
+import { captureInstallPrompt } from "./install";
 import { startQueue } from "./queue";
 import { type GuestSession, sessions } from "./session";
 
@@ -80,6 +81,7 @@ for (const [rel, href] of [
   document.head.append(link);
 }
 
+captureInstallPrompt(); // before rendering, so Chrome's early install event isn't missed
 createRoot(document.getElementById("root")!).render(<App />);
 
 // Makes the app installable on Android ("Install app") and lets it open offline. HTTPS / localhost only.

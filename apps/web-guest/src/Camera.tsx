@@ -1,6 +1,7 @@
 import { type ChangeEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { dismissHomeScreenTip, enterFullscreen, shouldSuggestHomeScreen } from "./fullscreen";
 import { UnsupportedImageError, captureVideoFrame, looksLikeHeic } from "./image";
+import { dismissInstallCard, installCardDismissed, promptInstall, useCanInstall } from "./install";
 import { enqueuePhoto, retryBlocked, useQueue } from "./queue";
 import type { GuestSession } from "./session";
 
@@ -50,6 +51,16 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
   const [flying, setFlying] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [homeTip, setHomeTip] = useState(shouldSuggestHomeScreen);
+  // Android: offer to install as soon as Chrome allows it; "Not now" leaves a small link instead.
+  const canInstall = useCanInstall();
+  const [installCardHidden, setInstallCardHidden] = useState(() => installCardDismissed(event.slug));
+  const install = async () => {
+    const accepted = await promptInstall();
+    if (!accepted) {
+      dismissInstallCard(event.slug);
+      setInstallCardHidden(true);
+    }
+  };
 
   // ─── Live camera lifecycle ──────────────────────────────────────────────────
 
@@ -214,6 +225,29 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
           For full screen: tap <IconShare /> then “Add to Home Screen” <span aria-hidden>✕</span>
         </button>
       )}
+      {canInstall && !installCardHidden && (
+        <section className="install-card" role="dialog" aria-label="Install SnapShare">
+          <img src="/join/icons/icon-192.png" alt="" width="44" height="44" />
+          <div className="install-copy">
+            <strong>Install SnapShare</strong>
+            <span>Open {event.name} from your home screen, full screen.</span>
+          </div>
+          <div className="install-actions">
+            <button
+              className="btn small ghost"
+              onClick={() => {
+                dismissInstallCard(event.slug);
+                setInstallCardHidden(true);
+              }}
+            >
+              Not now
+            </button>
+            <button className="btn small light" onClick={install}>
+              Install
+            </button>
+          </div>
+        </section>
+      )}
       {liveSupported && (
         <video
           ref={videoRef}
@@ -261,6 +295,11 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
           <button className="btn ghost" onClick={() => uploadInputRef.current?.click()}>
             Choose from my photos
           </button>
+          {canInstall && installCardHidden && (
+            <button className="btn ghost small" onClick={install}>
+              Install the SnapShare app
+            </button>
+          )}
           {liveSupported && <p className="fineprint">Allow camera access in your browser settings to use the in-app camera.</p>}
         </section>
       )}
@@ -311,6 +350,12 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
             <button onClick={() => cameraInputRef.current?.click()}>Use phone camera</button>
             <span aria-hidden>·</span>
             <button onClick={() => uploadInputRef.current?.click()}>Upload from photos</button>
+            {canInstall && installCardHidden && (
+              <>
+                <span aria-hidden>·</span>
+                <button onClick={install}>Install app</button>
+              </>
+            )}
           </div>
         )}
       </footer>
