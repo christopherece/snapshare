@@ -8,8 +8,13 @@
   </head>
   <body>
     <main id="stage" aria-live="polite">
+      <!-- Fade / slide / zoom / flip / ken burns: two stacked layers swap places. -->
       <div class="layer" data-layer="a"><div class="backdrop"></div><img alt="" /></div>
       <div class="layer" data-layer="b"><div class="backdrop"></div><img alt="" /></div>
+      <!-- Polaroids: prints dropped onto a pile. -->
+      <div id="pile" class="pile"><div class="backdrop"></div></div>
+      <!-- Mosaic: a wall of tiles, one flipping at a time. -->
+      <div id="mosaic" class="mosaic"></div>
 
       <section id="empty" class="empty" hidden>
         <p class="kicker">Share your photos</p>
@@ -30,6 +35,18 @@
       </footer>
 
       <div id="toast" class="toast" hidden></div>
+
+      <!-- Appears when the mouse moves (or press S): pick a style and speed, live. -->
+      <button id="settings-btn" class="settings-btn" aria-label="Slideshow style">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></svg>
+      </button>
+      <section id="settings" class="settings" hidden aria-label="Slideshow settings">
+        <p class="settings-title">Style</p>
+        <div id="style-options" class="options"></div>
+        <p class="settings-title">Each photo for</p>
+        <div id="speed-options" class="options"></div>
+        <p class="settings-hint">Keys: 1–7 style · S settings · F full screen · → next</p>
+      </section>
       <div id="status" class="status" hidden>Reconnecting…</div>
     </main>
     <script type="module" src="./src/main.ts"></script>
