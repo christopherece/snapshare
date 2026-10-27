@@ -68,6 +68,31 @@ export async function cropCenter(blob: Blob, zoom: number): Promise<Blob> {
   return out;
 }
 
+/** Turn a photo by ±90° (clockwise when positive) — makes landscape shots come out landscape. */
+export async function rotatePhoto(blob: Blob, degrees: -90 | 0 | 90): Promise<Blob> {
+  if (!degrees) return blob;
+  const bitmap = await createImageBitmap(blob, { imageOrientation: "from-image" });
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.height;
+  canvas.height = bitmap.width;
+  const ctx = canvas.getContext("2d")!;
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((degrees * Math.PI) / 180);
+  ctx.drawImage(bitmap, -bitmap.width / 2, -bitmap.height / 2);
+  bitmap.close();
+  const out = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+  if (!out) throw new Error("Could not rotate photo");
+  return out;
+}
+
+/** Width and height of a photo as it will display (EXIF orientation applied). */
+export async function photoSize(blob: Blob) {
+  const bitmap = await createImageBitmap(blob, { imageOrientation: "from-image" });
+  const size = { width: bitmap.width, height: bitmap.height };
+  bitmap.close();
+  return size;
+}
+
 /** Grab the current frame of a <video> as a full-resolution JPEG. */
 export async function captureVideoFrame(video: HTMLVideoElement, mirror: boolean): Promise<Blob> {
   const canvas = document.createElement("canvas");
