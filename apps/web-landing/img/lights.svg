@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 340" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a2140"/>
+      <stop offset="0.55" stop-color="#8a4f5c"/>
+      <stop offset="1" stop-color="#e8a26a"/>
+    </linearGradient>
+    <radialGradient id="bulb">
+      <stop offset="0" stop-color="#fff6d8"/>
+      <stop offset="0.35" stop-color="#ffd27a" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="340" fill="url(#sky)"/>
+  <path d="M-10 60 Q100 120 200 70 T410 80" fill="none" stroke="#1a1410" stroke-width="2" opacity="0.6"/>
+  <path d="M-10 120 Q120 170 230 125 T410 140" fill="none" stroke="#1a1410" stroke-width="2" opacity="0.5"/>
+  <g fill="url(#bulb)">
+    <circle cx="20" cy="70" r="16"/><circle cx="62" cy="88" r="16"/><circle cx="105" cy="96" r="16"/>
+    <circle cx="150" cy="88" r="16"/><circle cx="196" cy="72" r="16"/><circle cx="244" cy="66" r="16"/>
+    <circle cx="292" cy="72" r="16"/><circle cx="340" cy="78" r="16"/><circle cx="385" cy="80" r="16"/>
+    <circle cx="30" cy="132" r="13"/><circle cx="80" cy="150" r="13"/><circle cx="130" cy="157" r="13"/>
+    <circle cx="180" cy="146" r="13"/><circle cx="230" cy="126" r="13"/><circle cx="282" cy="128" r="13"/>
+    <circle cx="332" cy="135" r="13"/><circle cx="380" cy="140" r="13"/>
+  </g>
+  <!-- couple silhouette -->
+  <g fill="#1a1410">
+    <path d="M0 300 Q200 270 400 300 L400 340 L0 340 Z"/>
+    <circle cx="186" cy="196" r="13"/>
+    <path d="M170 212 Q186 206 200 214 L206 290 L166 290 Z"/>
+    <circle cx="214" cy="190" r="14"/>
+    <path d="M200 208 Q214 200 230 210 L236 248 L250 300 L188 300 L198 248 Z"/>
+  </g>
+</svg>

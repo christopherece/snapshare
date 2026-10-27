@@ -303,25 +303,25 @@ summary:focus-visible {
 }
 .ph {
   border-radius: 6px;
-  background-size: cover;
+  background: center / cover no-repeat;
 }
 .p1 {
-  background: linear-gradient(135deg, #e8b98a, #b56f4a);
+  background-image: url("./img/lights.svg");
 }
 .p2 {
-  background: linear-gradient(160deg, #9ab7c9, #4e6d84);
+  background-image: url("./img/toast.svg");
 }
 .p3 {
-  background: linear-gradient(120deg, #f0d9b5, #c99b62);
+  background-image: url("./img/cake.svg");
 }
 .p4 {
-  background: linear-gradient(140deg, #c4a3b6, #7a5470);
+  background-image: url("./img/dance.svg");
 }
 .p5 {
-  background: linear-gradient(150deg, #a9c79a, #5b7f4d);
+  background-image: url("./img/bouquet.svg");
 }
 .p6 {
-  background: linear-gradient(130deg, #f3c7a4, #d38660);
+  background-image: url("./img/vineyard.svg");
 }
 .pop {
   animation: pop 4s ease-in-out infinite;
@@ -407,10 +407,7 @@ summary:focus-visible {
 .vf {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(circle at 35% 40%, rgba(255, 220, 170, 0.75), transparent 45%),
-    radial-gradient(circle at 70% 65%, rgba(201, 120, 80, 0.7), transparent 50%),
-    linear-gradient(160deg, #6b4a36, #2a1f18);
+  background: #2a1d17 url("./img/selfie.svg") center / cover no-repeat;
 }
 .phone-top {
   position: absolute;
@@ -435,7 +432,7 @@ summary:focus-visible {
   height: 30px;
   border-radius: 8px;
   border: 2px solid #fff;
-  background: linear-gradient(135deg, #a9c79a, #5b7f4d);
+  background: url("./img/bouquet.svg") center / cover no-repeat;
 }
 .shutter {
   width: 54px;

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 340" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c8dcb8"/>
+      <stop offset="1" stop-color="#5b7f4d"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="340" fill="url(#bg)"/>
+  <!-- dress -->
+  <path d="M120 340 Q150 220 200 200 Q250 220 280 340 Z" fill="#fbf8f2"/>
+  <path d="M170 340 Q185 260 200 240 Q215 260 230 340 Z" fill="#efe9de"/>
+  <!-- stems -->
+  <g stroke="#56703f" stroke-width="5" stroke-linecap="round">
+    <path d="M200 270 L188 190"/><path d="M200 270 L212 188"/><path d="M200 270 L200 186"/>
+  </g>
+  <rect x="190" y="236" width="22" height="16" rx="3" fill="#e9dcc4"/>
+  <!-- leaves -->
+  <g fill="#6f8f57">
+    <ellipse cx="146" cy="150" rx="24" ry="10" transform="rotate(-30 146 150)"/>
+    <ellipse cx="256" cy="148" rx="24" ry="10" transform="rotate(28 256 148)"/>
+    <ellipse cx="160" cy="196" rx="20" ry="8" transform="rotate(20 160 196)"/>
+    <ellipse cx="244" cy="196" rx="20" ry="8" transform="rotate(-20 244 196)"/>
+  </g>
+  <!-- blooms -->
+  <g>
+    <circle cx="200" cy="138" r="32" fill="#f4c6c2"/><circle cx="200" cy="138" r="18" fill="#e79a9a"/><circle cx="200" cy="138" r="7" fill="#c9737a"/>
+    <circle cx="158" cy="168" r="26" fill="#fff8ee"/><circle cx="158" cy="168" r="12" fill="#f0e2c8"/>
+    <circle cx="244" cy="166" r="26" fill="#fff8ee"/><circle cx="244" cy="166" r="12" fill="#f0e2c8"/>
+    <circle cx="176" cy="112" r="18" fill="#fde2c4"/><circle cx="226" cy="110" r="18" fill="#f8d1b8"/>
+    <circle cx="200" cy="186" r="20" fill="#f2b8b0"/><circle cx="200" cy="186" r="8" fill="#d98880"/>
+  </g>
+</svg>

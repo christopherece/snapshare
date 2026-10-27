@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 340" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8c79a"/>
+      <stop offset="0.6" stop-color="#f19b72"/>
+      <stop offset="1" stop-color="#d6705a"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="340" fill="url(#sky)"/>
+  <circle cx="290" cy="150" r="42" fill="#fff0c8" opacity="0.9"/>
+  <path d="M0 190 Q90 150 180 180 T400 170 L400 340 L0 340 Z" fill="#b8664f"/>
+  <path d="M0 230 Q120 200 240 226 T400 214 L400 340 L0 340 Z" fill="#8a4a3c"/>
+  <g stroke="#5e3229" stroke-width="5" stroke-linecap="round" opacity="0.8">
+    <path d="M-20 340 L120 240"/><path d="M60 340 L170 244"/><path d="M150 340 L220 246"/>
+    <path d="M240 340 L270 244"/><path d="M330 340 L320 240"/><path d="M420 340 L370 238"/>
+  </g>
+  <!-- two people walking -->
+  <g fill="#3a1f1a">
+    <circle cx="150" cy="200" r="8"/><path d="M142 210 L158 210 L162 252 L138 252 Z"/>
+    <circle cx="172" cy="198" r="8"/><path d="M164 208 Q172 204 180 208 L188 252 L158 252 Z"/>
+  </g>
+</svg>
