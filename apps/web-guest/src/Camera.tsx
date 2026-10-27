@@ -11,7 +11,7 @@ import {
 import { enterFullscreen } from "./fullscreen";
 import { UnsupportedImageError, captureVideoFrame, cropCenter, looksLikeHeic, photoSize, rotatePhoto } from "./image";
 import { correctionNow, trackOrientation } from "./orientation";
-import { dismissInstallCard, installCardDismissed, promptInstall, useInstallMode } from "./install";
+import { dismissInstallCard, installCardDismissed, promptInstall, storeUrlForThisPhone, useInstallMode } from "./install";
 import { enqueuePhoto, retryBlocked, useQueue } from "./queue";
 import type { GuestSession } from "./session";
 
@@ -30,6 +30,20 @@ type Facing = "environment" | "user";
 type CamState = "starting" | "live" | "unavailable" | "phone";
 
 const PHONE_CAMERA_KEY = "snapshare.phoneCamera";
+
+/** Tips dismissed for this visit only (sessionStorage can be unavailable in private modes). */
+const sessionStorageGet = (key: string) => {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+const sessionStorageSet = (key: string) => {
+  try {
+    sessionStorage.setItem(key, "1");
+  } catch {}
+};
 
 /**
  * Android may close the page while its camera app is open; the photo is then lost (the browser can't hand
@@ -129,8 +143,41 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
     setInstallCardHidden(true);
   };
   const install = async () => {
+    if (installMode === "store") return void (location.href = storeUrlForThisPhone()!); // native app's store page
     if (installMode !== "prompt") return setInstallCardHidden(false); // iPhone: show the steps again
     if (!(await promptInstall())) hideInstallCard();
+  };
+
+  // ─── Low light: suggest the phone's camera ──────────────────────────────────
+  // Where photos are grabbed from the live video (iPhone — Safari has no still capture), dim scenes come
+  // out soft and noisy; the phone's own camera has night processing. Sample a tiny frame every 2 s.
+  const [lowLight, setLowLight] = useState(false);
+  const lowLightDismissKey = `snapshare.lowLightTip.${event.slug}`;
+  useEffect(() => {
+    if (camState !== "live" || imageCaptureRef.current || sessionStorageGet(lowLightDismissKey)) return;
+    const probe = document.createElement("canvas");
+    probe.width = probe.height = 24;
+    const ctx = probe.getContext("2d", { willReadFrequently: true });
+    let darkSamples = 0;
+    const timer = setInterval(() => {
+      const video = videoRef.current;
+      if (!ctx || !video || video.readyState < 2) return;
+      ctx.drawImage(video, 0, 0, 24, 24);
+      const px = ctx.getImageData(0, 0, 24, 24).data;
+      let sum = 0;
+      for (let i = 0; i < px.length; i += 4) sum += 0.2126 * px[i]! + 0.7152 * px[i + 1]! + 0.0722 * px[i + 2]!;
+      // Average brightness under ~18% for two samples in a row (4 s) — a dim reception, not a passing shadow.
+      darkSamples = sum / (px.length / 4) < 45 ? darkSamples + 1 : 0;
+      if (darkSamples >= 2) {
+        setLowLight(true);
+        clearInterval(timer);
+      }
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [camState, lowLightDismissKey]);
+  const dismissLowLight = () => {
+    sessionStorageSet(lowLightDismissKey);
+    setLowLight(false);
   };
 
   // ─── Zoom: pinch the viewfinder or tap the 1×/2× chip ──────────────────────
@@ -361,11 +408,41 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
       onPointerUp={onPointerEnd}
       onPointerCancel={onPointerEnd}
     >
+      {lowLight && camState === "live" && (installCardHidden || !installMode) && (
+        <section className="install-card lowlight" role="dialog" aria-label="Low light">
+          <span className="lowlight-icon" aria-hidden>
+            ☾
+          </span>
+          <div className="install-copy">
+            <strong>It's dark here</strong>
+            <span>For sharper photos in low light, use your phone's camera — it has night mode.</span>
+          </div>
+          <div className="install-actions">
+            <button className="btn small ghost" onClick={dismissLowLight}>
+              Keep this camera
+            </button>
+            <button
+              className="btn small light"
+              onClick={() => {
+                dismissLowLight();
+                choosePhoneCamera(true);
+              }}
+            >
+              Use phone camera
+            </button>
+          </div>
+        </section>
+      )}
       {installMode && !installCardHidden && (
         <section className="install-card" role="dialog" aria-label="Install SnapShare">
           <img src="/join/icons/icon-192.png" alt="" width="44" height="44" />
           <div className="install-copy">
-            <strong>Install SnapShare</strong>
+            <strong>{installMode === "store" ? "Get the SnapShare app" : "Install SnapShare"}</strong>
+            {installMode === "store" && (
+              <span>
+                Sharper photos and a one-tap camera. Then enter code <b>{event.slug.toUpperCase()}</b> in the app.
+              </span>
+            )}
             {installMode === "prompt" && <span>Open {event.name} from your home screen, full screen.</span>}
             {installMode === "ios" && (
               <span>
@@ -380,13 +457,13 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
             )}
           </div>
           <div className="install-actions">
-            {installMode === "prompt" ? (
+            {installMode === "prompt" || installMode === "store" ? (
               <>
                 <button className="btn small ghost" onClick={hideInstallCard}>
                   Not now
                 </button>
                 <button className="btn small light" onClick={install}>
-                  Install
+                  {installMode === "store" ? "Get the app" : "Install"}
                 </button>
               </>
             ) : (
@@ -462,7 +539,7 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
           )}
           {installMode && installCardHidden && (
             <button className="btn ghost small" onClick={install}>
-              Install the SnapShare app
+              {installMode === "store" ? "Get the SnapShare app" : "Install the SnapShare app"}
             </button>
           )}
           {camState === "unavailable" && liveSupported && (
@@ -525,7 +602,7 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
             {installMode && installCardHidden && (
               <>
                 <span aria-hidden>·</span>
-                <button onClick={install}>Install app</button>
+                <button onClick={install}>{installMode === "store" ? "Get the app" : "Install app"}</button>
               </>
             )}
           </div>

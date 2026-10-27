@@ -3,7 +3,8 @@ import { createRoot } from "react-dom/client";
 import { Camera } from "./Camera";
 import { Feed } from "./Feed";
 import { Join } from "./Join";
-import { captureInstallPrompt } from "./install";
+import { API_URL } from "./api";
+import { captureInstallPrompt, loadStoreLinks } from "./install";
 import { startQueue } from "./queue";
 import { type GuestSession, initialSlug, sessions } from "./session";
 
@@ -87,6 +88,7 @@ for (const [rel, href] of [
 }
 
 captureInstallPrompt(); // before rendering, so Chrome's early install event isn't missed
+void loadStoreLinks(API_URL); // native app store links, once the app is published
 createRoot(document.getElementById("root")!).render(<App />);
 
 // Makes the app installable on Android ("Install app") and lets it open offline. HTTPS / localhost only.

@@ -22,6 +22,11 @@ const app = new Hono()
   .use(secureHeaders({ crossOriginResourcePolicy: false }))
   .use("/api/*", cors({ origin: "*", allowHeaders: ["Authorization", "Content-Type", "X-Guest-Token"] }))
   .get("/health", (c) => c.json({ ok: true }))
+  // Public settings for the guest app: native app store links (absent until the app is published).
+  .get("/api/config", (c) => {
+    c.header("Cache-Control", "public, max-age=300");
+    return c.json({ appStoreUrl: env.APP_STORE_URL ?? null, playStoreUrl: env.PLAY_STORE_URL ?? null });
+  })
   .route("/open", joinPage)
   .route("/api/auth", authRoutes)
   .route("/api/host", hostRoutes)

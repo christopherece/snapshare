@@ -5,6 +5,9 @@ const schema = z.object({
   PUBLIC_APP_URL: z.string().url(),
   /** What the QR code encodes: the guest web app. Must be http(s) so any phone camera can open it. */
   GUEST_JOIN_URL: z.string().default("http://localhost:5175/join/{slug}"),
+  /** Store listings of the native app. When set, guests on that platform are offered the app instead of the web install. */
+  APP_STORE_URL: z.string().url().optional(),
+  PLAY_STORE_URL: z.string().url().optional(),
   /** Where the "open in app" page (/open/:slug) sends guests: the native app (or Expo Go in dev). */
   APP_LINK_TEMPLATE: z.string().default("snapshare://join/{slug}"),
   SLIDESHOW_URL: z.string().url(),
