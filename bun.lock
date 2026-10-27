@@ -92,6 +92,10 @@
         "typescript": "~6.0.3",
       },
     },
+    "apps/web-landing": {
+      "name": "@snapshare/web-landing",
+      "version": "0.1.0",
+    },
     "apps/web-slideshow": {
       "name": "@snapshare/web-slideshow",
       "version": "0.1.0",
@@ -565,6 +569,8 @@
     "@snapshare/web-guest": ["@snapshare/web-guest@workspace:apps/web-guest"],
 
     "@snapshare/web-host": ["@snapshare/web-host@workspace:apps/web-host"],
+
+    "@snapshare/web-landing": ["@snapshare/web-landing@workspace:apps/web-landing"],
 
     "@snapshare/web-slideshow": ["@snapshare/web-slideshow@workspace:apps/web-slideshow"],
 

@@ -28,15 +28,17 @@ const app = new Hono()
   .route("/api/downloads", downloadRoutes)
   .route("/api", guestRoutes);
 
-// Production: serve the built guest app (/join/<code> — what QR codes point at), host dashboard
-// (/host) and slideshow (/slideshow) from this same origin.
+// Production: serve the marketing page (/), guest app (/join/<code> — what QR codes point at),
+// host dashboard (/host) and slideshow (/slideshow) from this same origin.
 if (env.STATIC_DIR) {
   const dir = env.STATIC_DIR;
-  app.get("/", (c) => c.redirect("/host/"));
   // Bundled JS/CSS have content-hashed names, so browsers may keep them forever; the HTML shell
   // must always be revalidated so a new deploy is picked up immediately.
   const cacheHeaders = (path: string, c: { header: (k: string, v: string) => void }) =>
     c.header("Cache-Control", path.endsWith(".html") ? "no-cache" : "public, max-age=31536000, immutable");
+
+  app.get("/", serveStatic({ root: dir, rewriteRequestPath: () => "/landing/index.html", onFound: cacheHeaders }));
+  app.use("/landing/*", serveStatic({ root: dir, onFound: cacheHeaders }));
 
   for (const name of ["join", "host", "slideshow"]) {
     app.get(`/${name}`, (c) => c.redirect(`/${name}/${new URL(c.req.url).search}`));
