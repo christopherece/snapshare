@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { ApiError, api } from "./api";
+import { uuid } from "./id";
 import { compressImage } from "./image";
 
 /**
@@ -132,7 +133,7 @@ export async function startQueue() {
 export async function enqueuePhoto(file: Blob, eventId: string, guestToken: string) {
   const blob = await compressImage(file);
   const item: QueueItem = {
-    clientId: crypto.randomUUID(),
+    clientId: uuid(),
     eventId,
     guestToken,
     blob,

@@ -1,4 +1,5 @@
 import type { EventPublicDTO } from "@snapshare/shared";
+import { uuid } from "./id";
 
 /**
  * Guest identity lives in localStorage: a stable device ID (used by the backend for
@@ -32,7 +33,7 @@ let memoryDeviceId: string | null = null;
 export function deviceId(): string {
   const existing = read<string>("snapshare.deviceId") ?? memoryDeviceId;
   if (existing) return existing;
-  const id = crypto.randomUUID();
+  const id = uuid();
   memoryDeviceId = id;
   write("snapshare.deviceId", id);
   return id;
