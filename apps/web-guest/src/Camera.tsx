@@ -9,7 +9,8 @@ import {
   useState,
 } from "react";
 import { enterFullscreen } from "./fullscreen";
-import { UnsupportedImageError, captureVideoFrame, cropCenter, looksLikeHeic } from "./image";
+import { UnsupportedImageError, captureVideoFrame, cropCenter, looksLikeHeic, photoSize, rotatePhoto } from "./image";
+import { correctionNow, trackOrientation } from "./orientation";
 import { dismissInstallCard, installCardDismissed, promptInstall, useInstallMode } from "./install";
 import { enqueuePhoto, retryBlocked, useQueue } from "./queue";
 import type { GuestSession } from "./session";
@@ -128,6 +129,7 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
   };
   const onPointerDown = (e: PointerEvent<HTMLElement>) => {
     enterFullscreen(); // returning guests land straight on the camera: their first tap hides the browser bars
+    void trackOrientation(); // landscape photos (iPhone asks for motion access on this first tap)
     if (camState !== "live" || (e.target as Element).closest("button, section")) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 2) pinch.current = { dist: pinchDistance(), zoom: zoomRef.current };
@@ -261,6 +263,9 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
       setFlashFx((n) => n + 1);
       // Hardware zoom is already in the photo; digital zoom crops it to what the viewfinder showed.
       if (!zoomRange.hardware && zoomRef.current > 1) blob = await cropCenter(blob, zoomRef.current);
+      // Phone held sideways but the frame came out portrait (rotation lock / full-res capture): turn it.
+      const size = await photoSize(blob);
+      blob = await rotatePhoto(blob, correctionNow(size.width, size.height));
       await handlePhoto(blob);
     } catch {
       setScreenFlash(false);
