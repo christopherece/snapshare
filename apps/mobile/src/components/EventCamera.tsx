@@ -1,9 +1,9 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { type CameraType, CameraView, type FlashMode, useCameraPermissions } from "expo-camera";
+import { type CameraOrientation, type CameraType, CameraView, type FlashMode, useCameraPermissions } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { useFocusEffect } from "expo-router";
-import { type ComponentRef, useCallback, useRef, useState } from "react";
+import { type ComponentProps, type ComponentRef, useCallback, useRef, useState } from "react";
 import { Animated, Easing, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { enqueuePhoto, usePendingCount } from "../lib/upload-queue";
@@ -23,6 +23,14 @@ const FLASH_ICON: Record<FlashMode, keyof typeof Ionicons.glyphMap> = {
   screen: "phone-portrait-outline",
 };
 const GALLERY_SIZE = 48;
+
+/** Icon rotation that keeps controls upright while the UI stays portrait (landscapeRight = turned clockwise). */
+const ICON_ROTATION: Record<CameraOrientation, number> = {
+  portrait: 0,
+  landscapeRight: -90,
+  landscapeLeft: 90,
+  portraitUpsideDown: 180,
+};
 
 /**
  * Guest camera: one-tap capture with flash feedback, haptics, and a thumbnail
@@ -52,6 +60,21 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
   const flashOpacity = useRef(new Animated.Value(0)).current;
   const flyProgress = useRef(new Animated.Value(0)).current;
   const shutterScale = useRef(new Animated.Value(1)).current;
+
+  // The layout stays portrait like the system camera; only the icons turn to face the user.
+  const iconAngle = useRef(new Animated.Value(0)).current;
+  const iconSpin = { transform: [{ rotate: iconAngle.interpolate({ inputRange: [-180, 180], outputRange: ["-180deg", "180deg"] }) }] };
+  const onOrientation = useCallback(
+    ({ orientation }: { orientation: CameraOrientation }) => {
+      Animated.timing(iconAngle, {
+        toValue: ICON_ROTATION[orientation] ?? 0,
+        duration: 250,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start();
+    },
+    [iconAngle],
+  );
 
   // Release the camera while another screen (the feed) is on top.
   useFocusEffect(
@@ -184,6 +207,9 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
           facing={facing}
           flash={flash}
           animateShutter={false}
+          // iOS: save landscape photos when the phone is turned, even though the UI is locked to portrait.
+          responsiveOrientationWhenOrientationLocked
+          onResponsiveOrientationChanged={onOrientation}
           onCameraReady={() => setReady(true)}
           onMountError={(e) => console.warn("Camera mount error", e.message)}
         />
@@ -202,11 +228,12 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
           label={`Flash ${flash}`}
           onPress={() => setFlash(FLASH_CYCLE[(FLASH_CYCLE.indexOf(flash) + 1) % FLASH_CYCLE.length]!)}
           active={flash !== "off"}
+          spin={iconSpin}
         />
         <Text numberOfLines={1} className="mx-3 flex-1 text-center text-sm font-medium tracking-widest text-white/90">
           {eventName.toUpperCase()}
         </Text>
-        <IconButton icon="grid-outline" label="Toggle grid" onPress={() => setShowGrid((g) => !g)} active={showGrid} />
+        <IconButton icon="grid-outline" label="Toggle grid" onPress={() => setShowGrid((g) => !g)} active={showGrid} spin={iconSpin} />
       </View>
 
       {/* Bottom bar */}
@@ -222,11 +249,13 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
           className="items-center justify-center overflow-hidden rounded-xl border-2 border-white/80 bg-white/10"
           style={{ width: GALLERY_SIZE, height: GALLERY_SIZE }}
         >
-          {lastThumb ? (
-            <Image source={{ uri: lastThumb }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
-          ) : (
-            <Ionicons name="images-outline" size={22} color="#fff" />
-          )}
+          <Animated.View style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }, iconSpin]}>
+            {lastThumb ? (
+              <Image source={{ uri: lastThumb }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
+            ) : (
+              <Ionicons name="images-outline" size={22} color="#fff" />
+            )}
+          </Animated.View>
           {pendingCount > 0 && (
             <View className="absolute -right-0.5 -top-0.5 min-w-[18px] items-center rounded-full bg-accent px-1">
               <Text className="text-[11px] font-semibold text-black">{pendingCount}</Text>
@@ -256,6 +285,7 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
           icon="camera-reverse-outline"
           label="Flip camera"
           size={26}
+          spin={iconSpin}
           onPress={() => {
             void Haptics.selectionAsync();
             setReady(false);
@@ -298,12 +328,14 @@ function IconButton({
   onPress,
   active = false,
   size = 22,
+  spin,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
   active?: boolean;
   size?: number;
+  spin?: ComponentProps<typeof Animated.View>["style"];
 }) {
   return (
     <Pressable
@@ -312,7 +344,9 @@ function IconButton({
       hitSlop={10}
       className="h-11 w-11 items-center justify-center rounded-full bg-black/30 active:bg-black/50"
     >
-      <Ionicons name={icon} size={size} color={active ? "#c8a97e" : "#fff"} />
+      <Animated.View style={spin}>
+        <Ionicons name={icon} size={size} color={active ? "#c8a97e" : "#fff"} />
+      </Animated.View>
     </Pressable>
   );
 }
