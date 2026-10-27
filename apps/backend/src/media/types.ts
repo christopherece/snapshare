@@ -3,6 +3,8 @@ export interface MediaJob {
   photoId: string;
   eventId: string;
   originalKey: string;
+  /** Approved at dispatch: write renditions to public/ (else private/). */
+  visible: boolean;
 }
 
 export type MediaJobResult =

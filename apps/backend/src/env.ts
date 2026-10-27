@@ -29,7 +29,13 @@ const schema = z.object({
   S3_SECRET_ACCESS_KEY: z.string(),
   S3_PUBLIC_URL: z.string().url(),
 
-  MAX_UPLOAD_BYTES: z.coerce.number().default(15 * 1024 * 1024),
+  /** Header the reverse proxy sets to the real client IP (rate limiting). Behind Cloudflare: cf-connecting-ip. */
+  CLIENT_IP_HEADER: z
+    .string()
+    .default("x-real-ip")
+    .transform((s) => s.toLowerCase()),
+
+  MAX_UPLOAD_BYTES:z.coerce.number().default(15 * 1024 * 1024),
   UPLOADS_PER_MINUTE: z.coerce.number().default(30),
   MEDIA_WORKERS: z.coerce.number().int().min(1).default(2),
 

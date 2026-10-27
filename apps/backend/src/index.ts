@@ -7,7 +7,7 @@ import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
 import { db } from "./db/client.ts";
 import { env } from "./env.ts";
-import { mediaQueue, scheduleAbandonedUploadCleanup } from "./media/queue.ts";
+import { hideUnapprovedRenditions, mediaQueue, scheduleAbandonedUploadCleanup } from "./media/queue.ts";
 import { type WsData, attachServer, handleUpgrade, websocketHandlers } from "./realtime/hub.ts";
 import { adminRoutes } from "./routes/admin.ts";
 import { authRoutes, ensureAdmin } from "./routes/auth.ts";
@@ -78,6 +78,7 @@ attachServer(server);
 mediaQueue.start();
 await mediaQueue.recover();
 scheduleAbandonedUploadCleanup();
+void hideUnapprovedRenditions().catch((err) => console.error("[media] hideUnapprovedRenditions", err));
 
 console.log(`SnapShare API listening on ${server.url}`);
 

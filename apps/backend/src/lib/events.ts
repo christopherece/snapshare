@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db, schema } from "../db/client.ts";
 import type { Event } from "../db/schema.ts";
 import { env } from "../env.ts";
-import { s3 } from "./storage.ts";
+import { renditionLocations, s3 } from "./storage.ts";
 
 /** Fields a host (or admin) can set on an event. */
 export const eventInput = z.object({
@@ -83,7 +83,10 @@ export async function deleteEventWithPhotos(eventId: string) {
     .where(eq(schema.photos.eventId, eventId));
   await db.delete(schema.events).where(eq(schema.events.id, eventId));
 
-  const keys = files.flatMap((f) => [f.a, f.b, f.c]).filter((k): k is string => !!k);
+  const keys = files.flatMap((f) => [
+    f.a,
+    ...[f.b, f.c].filter((k): k is string => !!k).flatMap(renditionLocations),
+  ]);
   // Delete in small batches so a big event doesn't open thousands of connections at once.
   for (let i = 0; i < keys.length; i += 20) {
     await Promise.allSettled(keys.slice(i, i + 20).map((k) => s3.delete(k)));

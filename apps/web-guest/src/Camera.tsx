@@ -1,5 +1,5 @@
 import { type ChangeEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { captureVideoFrame } from "./image";
+import { UnsupportedImageError, captureVideoFrame, looksLikeHeic } from "./image";
 import { enqueuePhoto, retryBlocked, useQueue } from "./queue";
 import type { GuestSession } from "./session";
 
@@ -47,6 +47,7 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
   const [flashFx, setFlashFx] = useState(0);
   const [screenFlash, setScreenFlash] = useState(false);
   const [flying, setFlying] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // ─── Live camera lifecycle ──────────────────────────────────────────────────
 
@@ -103,14 +104,23 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
   // ─── Capture ────────────────────────────────────────────────────────────────
 
   const handlePhoto = async (blob: Blob) => {
-    const url = URL.createObjectURL(blob);
-    setFlying(url);
+    // Most browsers can't display HEIC: animate the converted JPEG instead (after a short decode).
+    const heic = looksLikeHeic(blob);
+    if (!heic) setFlying(URL.createObjectURL(blob));
     try {
-      await enqueuePhoto(blob, event.id, guestToken);
-    } catch {
+      const item = await enqueuePhoto(blob, event.id, guestToken);
+      if (heic) setFlying(URL.createObjectURL(item.blob));
+    } catch (err) {
       navigator.vibrate?.([40, 60, 40]);
+      setNotice(err instanceof UnsupportedImageError ? "That photo's format isn't supported — try another" : "Couldn't save that photo — try again");
     }
   };
+
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(t);
+  }, [notice]);
 
   const shoot = async () => {
     if (busy || camState !== "live" || !videoRef.current) return;
@@ -242,7 +252,13 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
       )}
 
       <footer className="cam-bottom">
-        <StatusPill eventId={event.id} guestToken={guestToken} />
+        {notice ? (
+          <div className="pill warn" role="alert">
+            {notice}
+          </div>
+        ) : (
+          <StatusPill eventId={event.id} guestToken={guestToken} />
+        )}
         <div className="controls">
           <button ref={galleryBtnRef} className="gallery-btn" aria-label="Open live gallery" onClick={onOpenFeed}>
             {lastThumb ? <img src={lastThumb} alt="" /> : <IconImages />}

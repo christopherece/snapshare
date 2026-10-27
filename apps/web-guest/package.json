@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch serve.ts",
-    "build": "bun build ./index.html --outdir dist --production --public-path /join/",
+    "build": "bun build ./index.html --outdir dist --production --splitting --public-path /join/",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@snapshare/shared": "workspace:*",
+    "heic-to": "1.6.5",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },

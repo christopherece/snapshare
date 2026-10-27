@@ -1,7 +1,8 @@
-import { and, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, lt, ne, sql } from "drizzle-orm";
 import { db, schema } from "../db/client.ts";
 import { env } from "../env.ts";
 import { toPhotoDTO } from "../lib/dto.ts";
+import { setRenditionVisibility } from "../lib/storage.ts";
 import { realtime } from "../realtime/hub.ts";
 import type { MediaJob, MediaJobResult } from "./types.ts";
 
@@ -79,7 +80,7 @@ class MediaQueue {
 
   private async dispatch(slot: Slot, photoId: string) {
     // Reserve the slot synchronously so pump() doesn't double-book it.
-    slot.job = { jobId: crypto.randomUUID(), photoId, eventId: "", originalKey: "" };
+    slot.job = { jobId: crypto.randomUUID(), photoId, eventId: "", originalKey: "", visible: false };
     try {
       const [photo] = await db
         .update(schema.photos)
@@ -90,7 +91,12 @@ class MediaQueue {
         this.finish(slot, photoId);
         return;
       }
-      slot.job = { ...slot.job, eventId: photo.eventId, originalKey: photo.originalKey };
+      slot.job = {
+        ...slot.job,
+        eventId: photo.eventId,
+        originalKey: photo.originalKey,
+        visible: photo.moderation === "approved",
+      };
       slot.timer = setTimeout(() => this.replace(slot, "timed out"), JOB_TIMEOUT_MS);
       slot.worker.postMessage(slot.job);
     } catch (err) {
@@ -133,6 +139,14 @@ class MediaQueue {
       .returning();
     if (!photo) return;
 
+    // The host may have approved/hidden the photo while it was being processed.
+    const visible = photo.moderation === "approved";
+    if (visible !== job.visible) {
+      await setRenditionVisibility([photo.thumbKey, photo.displayKey], visible).catch((err) =>
+        console.error(`[media] ${photo.id}: could not move renditions`, err),
+      );
+    }
+
     const guest = photo.guestId
       ? await db.query.guests.findFirst({ where: eq(schema.guests.id, photo.guestId), columns: { displayName: true } })
       : null;
@@ -154,6 +168,22 @@ class MediaQueue {
 }
 
 export const mediaQueue = new MediaQueue();
+
+/**
+ * Renditions of pending/hidden photos processed before private/ existed still sit in public/.
+ * Move them on startup (idempotent — photos already in place are skipped).
+ */
+export async function hideUnapprovedRenditions() {
+  const rows = await db
+    .select({ id: schema.photos.id, thumbKey: schema.photos.thumbKey, displayKey: schema.photos.displayKey })
+    .from(schema.photos)
+    .where(and(eq(schema.photos.status, "ready"), ne(schema.photos.moderation, "approved")));
+  for (const r of rows) {
+    await setRenditionVisibility([r.thumbKey, r.displayKey], false).catch((err) =>
+      console.error(`[media] ${r.id}: could not hide renditions`, err),
+    );
+  }
+}
 
 /** Remove rows whose upload was never completed (app killed, URL expired…). */
 export function scheduleAbandonedUploadCleanup() {

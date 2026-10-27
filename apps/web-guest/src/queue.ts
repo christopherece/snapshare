@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { ApiError, api } from "./api";
+import { uuid } from "./id";
 import { compressImage } from "./image";
 
 /**
@@ -132,7 +133,7 @@ export async function startQueue() {
 export async function enqueuePhoto(file: Blob, eventId: string, guestToken: string) {
   const blob = await compressImage(file);
   const item: QueueItem = {
-    clientId: crypto.randomUUID(),
+    clientId: uuid(),
     eventId,
     guestToken,
     blob,
@@ -204,7 +205,8 @@ async function processItem(item: QueueItem) {
     await finish(item);
   } catch (err) {
     const attempts = item.attempts + 1;
-    const fatal = err instanceof ApiError && [401, 403, 404, 413].includes(err.status);
+    // 400 = server rejected the photo itself (e.g. unsupported type): retrying won't help.
+    const fatal = err instanceof ApiError && [400, 401, 403, 404, 413].includes(err.status);
     updateItem(item.clientId, {
       status: fatal ? "blocked" : "queued",
       attempts,

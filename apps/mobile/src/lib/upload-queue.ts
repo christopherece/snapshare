@@ -182,7 +182,8 @@ async function processItem(item: QueueItem) {
     await finish(item);
   } catch (err) {
     const attempts = item.attempts + 1;
-    const fatal = err instanceof ApiError && [401, 403, 404, 413].includes(err.status);
+    // 400 = server rejected the photo itself (e.g. unsupported type): retrying won't help.
+    const fatal = err instanceof ApiError && [400, 401, 403, 404, 413].includes(err.status);
     update(item.clientId, {
       status: fatal ? "blocked" : "queued",
       attempts,
