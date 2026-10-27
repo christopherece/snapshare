@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 340" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f6e7c9"/>
+      <stop offset="1" stop-color="#d4a86b"/>
+    </linearGradient>
+    <linearGradient id="tier" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#efe6d8"/>
+      <stop offset="0.5" stop-color="#fffdf8"/>
+      <stop offset="1" stop-color="#e3d7c4"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="340" fill="url(#bg)"/>
+  <rect x="0" y="282" width="400" height="58" fill="#b98a52"/>
+  <ellipse cx="200" cy="284" rx="120" ry="12" fill="#8f6838" opacity="0.5"/>
+  <rect x="104" y="214" width="192" height="68" rx="6" fill="url(#tier)"/>
+  <rect x="134" y="152" width="132" height="62" rx="6" fill="url(#tier)"/>
+  <rect x="162" y="98" width="76" height="54" rx="6" fill="url(#tier)"/>
+  <g fill="none" stroke="#d8c3a2" stroke-width="2">
+    <path d="M104 236 Q128 246 152 236 T200 236 T248 236 T296 236"/>
+    <path d="M134 172 Q156 182 178 172 T222 172 T266 172"/>
+  </g>
+  <!-- flowers -->
+  <g>
+    <circle cx="186" cy="94" r="11" fill="#e79a9a"/><circle cx="206" cy="88" r="12" fill="#f2b8b0"/><circle cx="222" cy="96" r="9" fill="#c9737a"/>
+    <circle cx="140" cy="210" r="9" fill="#f2b8b0"/><circle cx="262" cy="208" r="10" fill="#e79a9a"/>
+    <circle cx="112" cy="278" r="10" fill="#c9737a"/><circle cx="290" cy="276" r="9" fill="#f2b8b0"/>
+    <g fill="#7f9a6b"><ellipse cx="172" cy="100" rx="9" ry="4"/><ellipse cx="236" cy="100" rx="9" ry="4"/><ellipse cx="126" cy="214" rx="8" ry="4"/></g>
+  </g>
+</svg>
