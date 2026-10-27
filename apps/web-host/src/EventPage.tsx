@@ -61,9 +61,21 @@ export function EventPage({ eventId, token, me }: { eventId: string; token: stri
 
 // ─── Share: QR, flyer, slideshow ──────────────────────────────────────────────
 
+const SLIDESHOW_STYLES = [
+  ["fade", "Fade"],
+  ["slide", "Slide"],
+  ["zoom", "Zoom"],
+  ["flip", "Flip"],
+  ["kenburns", "Ken Burns"],
+  ["polaroid", "Polaroids"],
+  ["mosaic", "Mosaic"],
+] as const;
+
 function SharePanel({ event }: { event: HostEvent }) {
   const [qr, setQr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [slideStyle, setSlideStyle] = useState<string>("fade");
+  const slideshowUrl = `${event.slideshowUrl}&style=${slideStyle}`;
 
   useEffect(() => {
     api.qrSvg(event.id).then(setQr, () => setQr(null));
@@ -78,7 +90,7 @@ function SharePanel({ event }: { event: HostEvent }) {
 
   const copySlideshow = async () => {
     try {
-      await navigator.clipboard.writeText(event.slideshowUrl);
+      await navigator.clipboard.writeText(slideshowUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {}
@@ -95,7 +107,17 @@ function SharePanel({ event }: { event: HostEvent }) {
         <button className="btn primary block" onClick={printFlyer}>
           Print QR flyer
         </button>
-        <a className="btn block" href={event.slideshowUrl} target="_blank" rel="noreferrer">
+        <label>
+          Slideshow style
+          <select value={slideStyle} onChange={(e) => setSlideStyle(e.target.value)}>
+            {SLIDESHOW_STYLES.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <a className="btn block" href={slideshowUrl} target="_blank" rel="noreferrer">
           Open live slideshow ↗
         </a>
         <button className="btn ghost block small" onClick={copySlideshow}>
