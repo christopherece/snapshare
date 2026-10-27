@@ -392,12 +392,17 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
       </header>
 
       {(camState === "unavailable" || camState === "phone") && (
-        <section className="fallback">
+        <section
+          className={`fallback ${camState === "phone" ? "tap-anywhere" : ""}`}
+          // Phone camera mode: the whole screen is the shutter. Browsers only open the camera from a tap,
+          // so after each photo this is the closest to "straight back into the camera".
+          onClick={camState === "phone" ? (e) => !(e.target as Element).closest("button") && cameraInputRef.current?.click() : undefined}
+        >
           <p className="kicker">{camState === "phone" ? "Phone camera" : "Share the moment"}</p>
-          <h2>{camState === "phone" ? "Tap to take the next photo" : `Take photos for ${event.name}`}</h2>
+          <h2>{camState === "phone" ? "Tap anywhere for the next photo" : `Take photos for ${event.name}`}</h2>
           <p className="muted">
             {camState === "phone"
-              ? "Your phone's camera opens, and every photo uploads on its own. You'll come back here after each shot."
+              ? "Your phone's camera opens, and every photo uploads on its own."
               : "They'll appear live on the big screen and in the gallery."}
           </p>
           <button className="btn primary big" onClick={() => cameraInputRef.current?.click()}>

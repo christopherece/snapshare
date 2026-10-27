@@ -207,6 +207,8 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
   gap: 14px; padding: 100px 32px 220px; text-align: center;
   background: radial-gradient(ellipse at center, #1f1c18 0%, #000 75%);
 }
+.fallback.tap-anywhere { cursor: pointer; }
+.fallback.tap-anywhere:active { background: radial-gradient(ellipse at center, #2a2620 0%, #000 75%); }
 .fallback h2 { font-size: 30px; line-height: 1.2; }
 .fallback .muted { color: rgba(255,255,255,0.65); margin-bottom: 12px; }
 .fallback .btn { width: 100%; max-width: 320px; }
