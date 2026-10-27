@@ -171,6 +171,12 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 .pill.ok { background: rgba(46, 140, 87, 0.85); }
 .pill.warn { background: rgba(194, 65, 58, 0.9); }
 .pill.hidden { visibility: hidden; }
+.home-tip {
+  position: absolute; z-index: 6; left: 50%; transform: translateX(-50%);
+  top: calc(72px + var(--safe-top)); white-space: nowrap; font-size: 13px;
+}
+.home-tip svg { width: 17px; height: 17px; margin: 0 -2px; }
+.home-tip span { opacity: 0.6; margin-left: 4px; }
 
 .fallback {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
