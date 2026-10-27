@@ -6,6 +6,7 @@ import { useFocusEffect } from "expo-router";
 import { type ComponentProps, type ComponentRef, useCallback, useRef, useState } from "react";
 import { Animated, Easing, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { photoCorrection, watchHeldOrientation } from "../lib/orientation";
 import { enqueuePhoto, usePendingCount } from "../lib/upload-queue";
 
 interface Props {
@@ -80,7 +81,9 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
   useFocusEffect(
     useCallback(() => {
       setFocused(true);
+      const stopWatching = watchHeldOrientation(); // Android: landscape shots come out landscape
       return () => {
+        stopWatching();
         setFocused(false);
         setReady(false);
       };
@@ -141,7 +144,8 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
       playFly(photo.uri);
 
       // Compress + persist + queue in the background; the shutter is free immediately.
-      enqueuePhoto({ uri: photo.uri, width: photo.width, height: photo.height, eventId, guestToken }).catch((err) => {
+      const rotate = photoCorrection(photo.width, photo.height);
+      enqueuePhoto({ uri: photo.uri, width: photo.width, height: photo.height, rotate, eventId, guestToken }).catch((err) => {
         console.warn("Failed to queue photo", err);
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       });

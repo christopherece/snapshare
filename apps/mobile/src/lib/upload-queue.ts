@@ -97,8 +97,16 @@ export function startUploadQueue() {
 }
 
 /** Compress a fresh capture, persist it locally, and queue it for upload. Returns the local preview URI. */
-export async function enqueuePhoto(opts: { uri: string; width: number; height: number; eventId: string; guestToken: string }) {
-  const compressed = await compressPhoto(opts.uri, opts.width, opts.height);
+export async function enqueuePhoto(opts: {
+  uri: string;
+  width: number;
+  height: number;
+  /** Turn the photo first (Android landscape shots — see lib/orientation). */
+  rotate?: -90 | 0 | 90;
+  eventId: string;
+  guestToken: string;
+}) {
+  const compressed = await compressPhoto(opts.uri, opts.width, opts.height, opts.rotate);
   const clientId = randomUUID();
   const fileName = `${clientId}.jpg`;
 

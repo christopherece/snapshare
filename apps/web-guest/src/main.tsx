@@ -5,14 +5,18 @@ import { Feed } from "./Feed";
 import { Join } from "./Join";
 import { captureInstallPrompt } from "./install";
 import { startQueue } from "./queue";
-import { type GuestSession, sessions } from "./session";
+import { type GuestSession, initialSlug, sessions } from "./session";
 
 /** Event code from /join/<code> (the QR link). */
 const slugFromPath = () => location.pathname.match(/\/join\/([\w-]+)/)?.[1]?.toLowerCase() ?? null;
 
 function App() {
-  const [slug, setSlug] = useState(slugFromPath);
+  const [slug, setSlug] = useState(() => initialSlug(slugFromPath()));
   const [session, setSession] = useState<GuestSession | null>(() => (slug ? sessions.get(slug) : null));
+
+  useEffect(() => {
+    if (slug && session) sessions.rememberEvent(slug);
+  }, [slug, session]);
   const [view, setView] = useState<"camera" | "feed">("camera");
   const [lastThumb, setLastThumb] = useState<string | null>(null);
 
@@ -49,6 +53,7 @@ function App() {
 
   const leave = () => {
     sessions.clear(slug);
+    if (sessions.lastEvent() === slug) sessions.rememberEvent(null);
     setSession(null);
   };
 
@@ -72,7 +77,7 @@ function App() {
 // The manifest and icons are served as-is from public/ (the manifest needs fixed icon paths), which the
 // HTML bundler can't resolve at build time — so link them here.
 for (const [rel, href] of [
-  ["manifest", `/join/manifest.webmanifest${slugFromPath() ? `?slug=${slugFromPath()}` : ""}`],
+  ["manifest", `/join/manifest.webmanifest${initialSlug(slugFromPath()) ? `?slug=${initialSlug(slugFromPath())}` : ""}`],
   ["apple-touch-icon", "/join/icons/apple-touch-icon.png"],
 ] as const) {
   const link = document.createElement("link");

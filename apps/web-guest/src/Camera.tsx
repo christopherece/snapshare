@@ -30,6 +30,26 @@ type Facing = "environment" | "user";
 type CamState = "starting" | "live" | "unavailable" | "phone";
 
 const PHONE_CAMERA_KEY = "snapshare.phoneCamera";
+
+/**
+ * Android may close the page while its camera app is open; the photo is then lost (the browser can't hand
+ * it to a page that no longer exists). Mark when the camera opens, so the reopened page can say so.
+ */
+const AWAITING_KEY = "snapshare.awaitingPhoto";
+const markAwaitingPhoto = (on: boolean) => {
+  try {
+    on ? localStorage.setItem(AWAITING_KEY, String(Date.now())) : localStorage.removeItem(AWAITING_KEY);
+  } catch {}
+};
+const photoLostOnRestart = () => {
+  try {
+    const since = Number(localStorage.getItem(AWAITING_KEY));
+    localStorage.removeItem(AWAITING_KEY);
+    return since > 0 && Date.now() - since < 10 * 60_000;
+  } catch {
+    return false;
+  }
+};
 const prefersPhoneCamera = () => {
   try {
     return localStorage.getItem(PHONE_CAMERA_KEY) === "1";
@@ -66,13 +86,31 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
   const [camState, setCamState] = useState<CamState>(
     !liveSupported ? "unavailable" : phoneCamera ? "phone" : "starting",
   );
+  /** Open the phone's own camera app (must be called from a tap). */
+  const openPhoneCamera = () => {
+    markAwaitingPhoto(true);
+    cameraInputRef.current?.click();
+  };
   const choosePhoneCamera = (on: boolean) => {
     try {
       on ? localStorage.setItem(PHONE_CAMERA_KEY, "1") : localStorage.removeItem(PHONE_CAMERA_KEY);
     } catch {}
     setPhoneCamera(on);
-    if (on) cameraInputRef.current?.click(); // still inside the tap, so the camera may open
+    if (on) openPhoneCamera(); // still inside the tap, so the camera may open
   };
+
+  // Back from the phone's camera with no photo: either cancelled (page still alive — clear the mark once
+  // we're visible again) or the page was restarted (the mark survives — tell the guest on load).
+  useEffect(() => {
+    if (photoLostOnRestart()) {
+      setNotice("Your phone restarted SnapShare while the camera was open, so that photo didn't come through — please take it again");
+    }
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setTimeout(() => markAwaitingPhoto(false), 3000);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
   const [facing, setFacing] = useState<Facing>("environment");
   const [flashOn, setFlashOn] = useState(false);
   const [flashSupport, setFlashSupport] = useState<"none" | "flash" | "torch">("none");
@@ -229,7 +267,7 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
 
   useEffect(() => {
     if (!notice) return;
-    const t = setTimeout(() => setNotice(null), 4000);
+    const t = setTimeout(() => setNotice(null), Math.max(4000, notice.length * 70)); // long messages stay longer
     return () => clearTimeout(t);
   }, [notice]);
 
@@ -278,6 +316,7 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
   const onFiles = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith("image/") || f.type === "");
     e.target.value = "";
+    markAwaitingPhoto(false); // the photo made it back
     for (const f of files) await handlePhoto(f);
   };
 
@@ -401,7 +440,7 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
           className={`fallback ${camState === "phone" ? "tap-anywhere" : ""}`}
           // Phone camera mode: the whole screen is the shutter. Browsers only open the camera from a tap,
           // so after each photo this is the closest to "straight back into the camera".
-          onClick={camState === "phone" ? (e) => !(e.target as Element).closest("button") && cameraInputRef.current?.click() : undefined}
+          onClick={camState === "phone" ? (e) => !(e.target as Element).closest("button") && openPhoneCamera() : undefined}
         >
           <p className="kicker">{camState === "phone" ? "Phone camera" : "Share the moment"}</p>
           <h2>{camState === "phone" ? "Tap anywhere for the next photo" : `Take photos for ${event.name}`}</h2>
@@ -410,7 +449,7 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
               ? "Your phone's camera opens, and every photo uploads on its own."
               : "They'll appear live on the big screen and in the gallery."}
           </p>
-          <button className="btn primary big" onClick={() => cameraInputRef.current?.click()}>
+          <button className="btn primary big" onClick={openPhoneCamera}>
             <IconCamera /> Take a photo
           </button>
           <button className="btn ghost" onClick={() => uploadInputRef.current?.click()}>
@@ -452,7 +491,7 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
           </button>
 
           {camState === "unavailable" || camState === "phone" ? (
-            <button className="shutter alt" aria-label="Take a photo" onClick={() => cameraInputRef.current?.click()}>
+            <button className="shutter alt" aria-label="Take a photo" onClick={openPhoneCamera}>
               <IconCamera />
             </button>
           ) : (

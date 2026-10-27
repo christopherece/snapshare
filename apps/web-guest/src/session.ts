@@ -45,4 +45,17 @@ export const sessions = {
   clear: (slug: string) => write(`snapshare.session.${slug}`, null),
   lastName: () => read<string>("snapshare.guestName"),
   rememberName: (name: string | null) => write("snapshare.guestName", name),
+  /**
+   * The event this device last joined. Android often closes the page while the phone's camera app is open
+   * and reopens the installed app at plain /join — this sends the guest straight back to their event.
+   */
+  lastEvent: () => read<string>("snapshare.lastEvent"),
+  rememberEvent: (slug: string | null) => write("snapshare.lastEvent", slug),
 };
+
+/** /join/<code>, or the last joined event when opened at plain /join with its session still saved. */
+export function initialSlug(fromPath: string | null) {
+  if (fromPath) return fromPath;
+  const last = sessions.lastEvent();
+  return last && sessions.get(last) ? last : null;
+}
