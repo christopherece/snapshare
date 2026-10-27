@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
+import { env } from "../env.ts";
 
 /**
  * In-memory token bucket. Fine for a single instance; swap for Redis
@@ -50,12 +51,12 @@ export function rateLimit<E extends object>(
   };
 }
 
+/**
+ * Read the client IP from the one header our proxy overwrites (CLIENT_IP_HEADER, default X-Real-IP).
+ * Never fall back to other headers: anything the proxy passes through unchanged (CF-Connecting-IP
+ * without Cloudflare in front, X-Forwarded-For) is attacker-controlled and would give each request
+ * a fresh rate-limit bucket.
+ */
 export function clientIp(c: { req: { header(name: string): string | undefined } }) {
-  // X-Real-IP is set by our nginx from the TCP peer, so clients can't spoof it (unlike X-Forwarded-For).
-  return (
-    c.req.header("cf-connecting-ip") ??
-    c.req.header("x-real-ip") ??
-    c.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
-    "unknown"
-  );
+  return c.req.header(env.CLIENT_IP_HEADER)?.trim() || "unknown";
 }

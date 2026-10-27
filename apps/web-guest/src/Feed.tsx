@@ -143,7 +143,8 @@ function useLiveFeed(eventId: string, token: string, onExpired: () => void) {
 
     const connect = () => {
       if (closed || ws) return;
-      ws = new WebSocket(`${WS_URL}?eventId=${eventId}&token=${encodeURIComponent(token)}`);
+      // Token goes in the subprotocol header, not the URL, so it stays out of proxy logs.
+      ws = new WebSocket(`${WS_URL}?eventId=${eventId}`, ["snapshare", `snapshare.guest.${token}`]);
       ws.onopen = () => {
         if (connectedBefore) void fetchFirstPage(); // we may have missed messages while away
         connectedBefore = true;

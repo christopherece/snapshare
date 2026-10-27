@@ -75,7 +75,8 @@ function connectEventSocket(
 
   const open = () => {
     if (closed || ws) return;
-    ws = new WebSocket(`${WS_URL}?eventId=${eventId}&token=${encodeURIComponent(token)}`);
+    // Token goes in the subprotocol header, not the URL, so it stays out of proxy logs.
+    ws = new WebSocket(`${WS_URL}?eventId=${eventId}`, ["snapshare", `snapshare.guest.${token}`]);
     ws.onopen = () => {
       if (hasConnected) onReconnect();
       hasConnected = true;

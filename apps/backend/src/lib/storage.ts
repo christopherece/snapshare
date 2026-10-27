@@ -8,6 +8,10 @@ import { env } from "../env.ts";
  *   originals/{eventId}/{photoId}             private, full-resolution upload
  *   public/{eventId}/{photoId}/thumb.webp     world-readable (CDN), ~480px
  *   public/{eventId}/{photoId}/display.webp   world-readable (CDN), ~2048px
+ *   private/{eventId}/{photoId}/…             the same renditions while a photo is pending or hidden
+ *
+ * The DB always stores the public/ key; a photo's renditions sit there only while it's approved,
+ * so hiding a photo also kills any URL to it that was already shared.
  */
 const credentials = {
   region: env.S3_REGION,
@@ -27,6 +31,27 @@ export const keys = {
   thumb: (eventId: string, photoId: string) => `public/${eventId}/${photoId}/thumb.webp`,
   display: (eventId: string, photoId: string) => `public/${eventId}/${photoId}/display.webp`,
 };
+
+/** Where a rendition (stored by its public/ key) lives while the photo isn't approved. */
+export const hiddenKey = (publicKey: string) => publicKey.replace(/^public\//, "private/");
+
+/** Both locations a rendition may occupy — for deletes. */
+export const renditionLocations = (publicKey: string) => [publicKey, hiddenKey(publicKey)];
+
+/**
+ * Move a photo's renditions to public/ (visible) or private/ (not). Idempotent: a rendition
+ * already in place is left alone, so repeating a failed approve/hide fixes things up.
+ */
+export async function setRenditionVisibility(publicKeys: (string | null)[], visible: boolean) {
+  for (const key of publicKeys) {
+    if (!key) continue;
+    const [from, to] = visible ? [hiddenKey(key), key] : [key, hiddenKey(key)];
+    const src = s3.file(from);
+    if (!(await src.exists())) continue;
+    await s3.write(to, await src.arrayBuffer(), { type: "image/webp" });
+    await src.delete();
+  }
+}
 
 export const UPLOAD_URL_TTL_SECONDS = 15 * 60;
 

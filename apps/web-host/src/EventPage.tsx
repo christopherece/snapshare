@@ -1,6 +1,6 @@
 import type { PhotoDTO, WsServerMessage } from "@snapshare/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { type HostEvent, type Me, type PhotoFilter, api, wsUrl } from "./api";
+import { type HostEvent, type Me, type PhotoFilter, api, openEventSocket } from "./api";
 
 const matches = (p: PhotoDTO, f: PhotoFilter) =>
   f === "all" || (f === "favorites" ? p.isFavorite : p.moderation === f);
@@ -265,7 +265,7 @@ function Gallery({ event, token, onCountsChanged }: { event: HostEvent; token: s
     let timer: ReturnType<typeof setTimeout>;
 
     const connect = () => {
-      ws = new WebSocket(wsUrl(event.id, token));
+      ws = openEventSocket(event.id, token);
       ws.onopen = () => (retry = 0);
       ws.onmessage = (e) => {
         const msg = JSON.parse(e.data) as WsServerMessage;

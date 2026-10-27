@@ -70,9 +70,13 @@ export const realtime = {
 
 // ─── Upgrade + socket handlers ──────────────────────────────────────────────
 
+const WS_PROTOCOL = "snapshare";
+
 /**
- * GET /ws?eventId=…&token=<guest token>|&key=<display key>|&auth=<host jwt>
- * Browsers can't set headers on WebSocket requests, so creds go in the query.
+ * GET /ws?eventId=…  with credentials in Sec-WebSocket-Protocol (browsers can't set other headers
+ * on a WebSocket, and query strings end up in proxy access logs):
+ *   new WebSocket(url, ["snapshare", "snapshare.guest.<guest token>"])   or "snapshare.host.<host jwt>"
+ * Slideshow displays use ?key=<displayKey> — it's already in the display page's own URL.
  */
 export async function handleUpgrade(req: Request, srv: Server<WsData>): Promise<Response | undefined> {
   const url = new URL(req.url);
@@ -82,14 +86,19 @@ export async function handleUpgrade(req: Request, srv: Server<WsData>): Promise<
   const event = await db.query.events.findFirst({ where: eq(schema.events.id, eventId) });
   if (!event) return new Response("Not found", { status: 404 });
 
+  const offered = (req.headers.get("sec-websocket-protocol") ?? "").split(",").map((p) => p.trim());
+  const cred = (kind: string) => offered.find((p) => p.startsWith(`${WS_PROTOCOL}.${kind}.`))?.slice(WS_PROTOCOL.length + kind.length + 2);
+
   const viewer = await resolveViewer(event, {
-    bearer: url.searchParams.get("auth"),
-    guestToken: url.searchParams.get("token"),
+    bearer: cred("host"),
+    guestToken: cred("guest"),
     displayKey: url.searchParams.get("key"),
   });
   if (!viewer) return new Response("Unauthorized", { status: 401 });
 
-  const ok = srv.upgrade(req, { data: { eventId, role: viewer.role } });
+  // Browsers drop the connection unless we accept one of the subprotocols they offered.
+  const headers = offered.includes(WS_PROTOCOL) ? { "Sec-WebSocket-Protocol": WS_PROTOCOL } : undefined;
+  const ok = srv.upgrade(req, { data: { eventId, role: viewer.role }, headers });
   return ok ? undefined : new Response("Upgrade failed", { status: 400 });
 }
 

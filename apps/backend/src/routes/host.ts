@@ -10,7 +10,7 @@ import { type AppEnv, assertCanManageEvent, randomToken, requireHost } from "../
 import { toPhotoDTO } from "../lib/dto.ts";
 import { eventInput, hostEventView, joinUrl, photoCounts, updateEvent } from "../lib/events.ts";
 import { body, notFound, randomSlug } from "../lib/http.ts";
-import { presignDownload, s3 } from "../lib/storage.ts";
+import { presignDownload, renditionLocations, s3, setRenditionVisibility } from "../lib/storage.ts";
 import { realtime } from "../realtime/hub.ts";
 import { signDownloadPath } from "./downloads.ts";
 
@@ -120,6 +120,11 @@ export const hostRoutes = new Hono<AppEnv>()
       z.object({ moderation: z.enum(["pending", "approved", "hidden"]).optional(), isFavorite: z.boolean().optional() }),
     );
     const photo = await findManagedPhoto(c.get("host"), c.req.param("id"));
+    // Move the renditions before saving, so a hidden photo is never left on the public CDN.
+    // (Still-processing photos are handled when the media queue finishes them.)
+    if (input.moderation && photo.status === "ready") {
+      await setRenditionVisibility([photo.thumbKey, photo.displayKey], input.moderation === "approved");
+    }
     const [updated] = await db.update(schema.photos).set(input).where(eq(schema.photos.id, photo.id)).returning();
     if (updated!.status === "ready") {
       realtime.photoModerated(toPhotoDTO(updated!, photo.guestName), photo.moderation);
@@ -131,7 +136,9 @@ export const hostRoutes = new Hono<AppEnv>()
     const photo = await findManagedPhoto(c.get("host"), c.req.param("id"));
     await db.delete(schema.photos).where(eq(schema.photos.id, photo.id));
     await Promise.allSettled(
-      [photo.originalKey, photo.thumbKey, photo.displayKey].filter(Boolean).map((k) => s3.delete(k!)),
+      [photo.originalKey, ...[photo.thumbKey, photo.displayKey].filter(Boolean).flatMap((k) => renditionLocations(k!))].map(
+        (k) => s3.delete(k),
+      ),
     );
     realtime.photoRemoved(photo.eventId, photo.id);
     return c.body(null, 204);

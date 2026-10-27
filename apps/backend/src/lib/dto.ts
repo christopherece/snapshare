@@ -1,14 +1,20 @@
 import type { EventPublicDTO, PhotoDTO } from "@snapshare/shared";
 import type { Event, Photo } from "../db/schema.ts";
-import { publicUrl } from "./storage.ts";
+import { hiddenKey, presignDownload, publicUrl } from "./storage.ts";
+
+/** Approved renditions are on the CDN; pending/hidden ones (host-only) get short-lived signed links. */
+function renditionUrl(p: Photo, key: string | null) {
+  if (!key) return "";
+  return p.moderation === "approved" ? publicUrl(key) : presignDownload(hiddenKey(key), 6 * 3600);
+}
 
 export function toPhotoDTO(p: Photo, guestName: string | null, likedByMe?: boolean): PhotoDTO {
   return {
     id: p.id,
     eventId: p.eventId,
     guestName,
-    thumbUrl: p.thumbKey ? publicUrl(p.thumbKey) : "",
-    displayUrl: p.displayKey ? publicUrl(p.displayKey) : "",
+    thumbUrl: renditionUrl(p, p.thumbKey),
+    displayUrl: renditionUrl(p, p.displayKey),
     width: p.width,
     height: p.height,
     takenAt: p.takenAt?.toISOString() ?? null,

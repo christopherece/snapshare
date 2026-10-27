@@ -23,7 +23,8 @@ const socialLimiter = new TokenBucket(30, 0.5);
 
 const byDevice = (c: { get(k: "guest"): Guest }) => c.get("guest").deviceId;
 
-const ALLOWED_TYPES = ["image/jpeg", "image/heic", "image/heif", "image/png", "image/webp"] as const;
+// No HEIC/HEIF: sharp's prebuilt binaries can't decode it. Our clients always re-encode to JPEG.
+const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
 async function eventById(id: string) {
   const event = await db.query.events.findFirst({ where: eq(schema.events.id, id) });

@@ -6,13 +6,15 @@
  */
 import exifr from "exifr";
 import sharp from "sharp";
-import { keys, s3 } from "../lib/storage.ts";
+import { hiddenKey, keys, s3 } from "../lib/storage.ts";
 import type { MediaJob, MediaJobResult } from "./types.ts";
 
 declare const self: Worker;
 
 const THUMB_SIZE = 480;
 const DISPLAY_SIZE = 2048;
+/** Refuse decompression bombs: sharp's default (~268 MP) can need ~1 GB of RAM per worker. 100 MP covers any phone camera. */
+const MAX_INPUT_PIXELS = 100_000_000;
 
 const EXIF_FIELDS = [
   "Make",
@@ -32,7 +34,7 @@ async function process(job: MediaJob): Promise<MediaJobResult> {
   const takenAt = exif?.DateTimeOriginal instanceof Date ? exif.DateTimeOriginal.toISOString() : null;
 
   // .rotate() with no args applies EXIF orientation, so outputs are upright.
-  const base = sharp(original, { failOn: "truncated" }).rotate();
+  const base = sharp(original, { failOn: "truncated", limitInputPixels: MAX_INPUT_PIXELS }).rotate();
 
   const [display, thumb] = await Promise.all([
     base
@@ -50,9 +52,10 @@ async function process(job: MediaJob): Promise<MediaJobResult> {
   const thumbKey = keys.thumb(job.eventId, job.photoId);
   const displayKey = keys.display(job.eventId, job.photoId);
   // Renditions are immutable per key — configure long Cache-Control on the CDN for public/*.
+  const at = (key: string) => (job.visible ? key : hiddenKey(key));
   await Promise.all([
-    s3.write(thumbKey, thumb, { type: "image/webp" }),
-    s3.write(displayKey, display.data, { type: "image/webp" }),
+    s3.write(at(thumbKey), thumb, { type: "image/webp" }),
+    s3.write(at(displayKey), display.data, { type: "image/webp" }),
   ]);
 
   return {

@@ -179,5 +179,6 @@ export const api = {
   },
 };
 
-export const wsUrl = (eventId: string, token: string) =>
-  `${API_URL.replace(/^http/, "ws")}/ws?eventId=${eventId}&auth=${encodeURIComponent(token)}`;
+/** The JWT goes in the subprotocol header, not the URL, so it stays out of proxy logs. */
+export const openEventSocket = (eventId: string, token: string) =>
+  new WebSocket(`${API_URL.replace(/^http/, "ws")}/ws?eventId=${eventId}`, ["snapshare", `snapshare.host.${token}`]);
