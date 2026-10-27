@@ -1,18 +1,37 @@
 const MAX_EDGE = 2560;
 const QUALITY = 0.82;
 
+/** The photo couldn't be decoded on this device, so it isn't uploaded (never send an unprocessed original). */
+export class UnsupportedImageError extends Error {
+  constructor() {
+    super("This photo format isn't supported");
+  }
+}
+
+/** HEIC/HEIF — iPhone's default format. Only Safari can decode it natively. */
+export const looksLikeHeic = (file: Blob) =>
+  /^image\/hei[cf]/.test(file.type) || (file instanceof File && /\.hei[cf]$/i.test(file.name));
+
+async function decode(file: Blob): Promise<ImageBitmap> {
+  try {
+    return await createImageBitmap(file, { imageOrientation: "from-image" });
+  } catch {}
+  // Chrome/Firefox can't read HEIC: decode it on the phone with libheif (~3 MB, loaded only when needed).
+  try {
+    const { heicTo } = await import("heic-to");
+    return await heicTo({ blob: file, type: "bitmap", options: { imageOrientation: "from-image" } });
+  } catch {
+    throw new UnsupportedImageError();
+  }
+}
+
 /**
  * Downscale to MAX_EDGE on the longest side and re-encode as JPEG (typically 0.8–2 MB),
- * applying EXIF orientation. Re-encoding also strips EXIF (incl. GPS) before upload.
- * Falls back to the original file if the browser can't decode it (e.g. HEIC on Chrome).
+ * applying EXIF orientation. Re-encoding also strips EXIF (incl. GPS) before upload,
+ * so a file we can't decode is rejected rather than uploaded as-is.
  */
 export async function compressImage(file: Blob): Promise<Blob> {
-  let bitmap: ImageBitmap;
-  try {
-    bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-  } catch {
-    return file;
-  }
+  const bitmap = await decode(file);
 
   const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
   const w = Math.round(bitmap.width * scale);
@@ -22,14 +41,15 @@ export async function compressImage(file: Blob): Promise<Blob> {
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return file;
+  if (!ctx) throw new UnsupportedImageError();
   ctx.imageSmoothingQuality = "high";
   ctx.drawImage(bitmap, 0, 0, w, h);
   bitmap.close();
 
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", QUALITY));
-  // Always prefer the re-encoded copy so location metadata never leaves the phone.
-  return blob ?? file;
+  // Only the re-encoded copy is ever uploaded, so location metadata never leaves the phone.
+  if (!blob) throw new UnsupportedImageError();
+  return blob;
 }
 
 /** Grab the current frame of a <video> as a full-resolution JPEG. */
