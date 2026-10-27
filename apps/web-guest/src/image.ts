@@ -52,6 +52,22 @@ export async function compressImage(file: Blob): Promise<Blob> {
   return blob;
 }
 
+/** Digital zoom: keep the centre 1/zoom of the photo (when the camera has no hardware zoom). */
+export async function cropCenter(blob: Blob, zoom: number): Promise<Blob> {
+  if (zoom <= 1.01) return blob;
+  const bitmap = await createImageBitmap(blob, { imageOrientation: "from-image" });
+  const w = Math.round(bitmap.width / zoom);
+  const h = Math.round(bitmap.height / zoom);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  canvas.getContext("2d")!.drawImage(bitmap, (bitmap.width - w) / 2, (bitmap.height - h) / 2, w, h, 0, 0, w, h);
+  bitmap.close();
+  const out = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+  if (!out) throw new Error("Could not zoom photo");
+  return out;
+}
+
 /** Grab the current frame of a <video> as a full-resolution JPEG. */
 export async function captureVideoFrame(video: HTMLVideoElement, mirror: boolean): Promise<Blob> {
   const canvas = document.createElement("canvas");

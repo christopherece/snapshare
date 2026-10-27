@@ -1,12 +1,13 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * Android "Install app" prompt.
+ * "Install SnapShare" offer.
  *
- * Chrome fires `beforeinstallprompt` once the page is installable and the guest has engaged with it
- * (a tap and a little time on the page). We keep the event and show our own "Install SnapShare?"
- * card; tapping Install opens Chrome's confirmation dialog. iPhone never fires it — there the
- * Add to Home Screen tip is shown instead (fullscreen.ts).
+ * Android: Chrome fires `beforeinstallprompt` once the page is installable and the guest has engaged
+ * with it (a tap and a little time on the page). We keep the event and show our own card; tapping
+ * Install opens Chrome's confirmation dialog.
+ * iPhone/iPad: no browser lets a page prompt, so the same card shows the steps instead
+ * (Share → Add to Home Screen), right away.
  */
 
 interface BeforeInstallPromptEvent extends Event {
@@ -50,6 +51,26 @@ export async function promptInstall(): Promise<boolean> {
   await e.prompt();
   const { outcome } = await e.userChoice;
   return outcome === "accepted";
+}
+
+const isStandalone = () =>
+  matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches ||
+  (navigator as Navigator & { standalone?: boolean }).standalone === true;
+
+/** How this guest can install: Android one-tap, iOS steps, or not at all (already installed / desktop). */
+export type InstallMode = "prompt" | "ios" | "ios-in-app" | null;
+
+const isIos = () =>
+  /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+/** Instagram, Facebook, Messenger, LINE… open links in their own browser, which can't add to the home screen. */
+const isInAppBrowser = () => /FBAN|FBAV|Instagram|Line\/|Messenger|Snapchat|TikTok/i.test(navigator.userAgent);
+
+export function useInstallMode(): InstallMode {
+  const canPrompt = useCanInstall();
+  if (isStandalone()) return null;
+  if (canPrompt) return "prompt";
+  if (isIos()) return isInAppBrowser() ? "ios-in-app" : "ios";
+  return null;
 }
 
 const dismissKey = (slug: string) => `snapshare.installDismissed.${slug}`;

@@ -1,7 +1,16 @@
-import { type ChangeEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { dismissHomeScreenTip, enterFullscreen, shouldSuggestHomeScreen } from "./fullscreen";
-import { UnsupportedImageError, captureVideoFrame, looksLikeHeic } from "./image";
-import { dismissInstallCard, installCardDismissed, promptInstall, useCanInstall } from "./install";
+import {
+  type CSSProperties,
+  type ChangeEvent,
+  type PointerEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { enterFullscreen } from "./fullscreen";
+import { UnsupportedImageError, captureVideoFrame, cropCenter, looksLikeHeic } from "./image";
+import { dismissInstallCard, installCardDismissed, promptInstall, useInstallMode } from "./install";
 import { enqueuePhoto, retryBlocked, useQueue } from "./queue";
 import type { GuestSession } from "./session";
 
@@ -50,16 +59,67 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
   const [screenFlash, setScreenFlash] = useState(false);
   const [flying, setFlying] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [homeTip, setHomeTip] = useState(shouldSuggestHomeScreen);
-  // Android: offer to install as soon as Chrome allows it; "Not now" leaves a small link instead.
-  const canInstall = useCanInstall();
+  // Install offer: Android one-tap (once Chrome allows it), iPhone steps (right away).
+  // "Not now" hides the card for this event and leaves a small "Install app" link.
+  const installMode = useInstallMode();
   const [installCardHidden, setInstallCardHidden] = useState(() => installCardDismissed(event.slug));
+  const hideInstallCard = () => {
+    dismissInstallCard(event.slug);
+    setInstallCardHidden(true);
+  };
   const install = async () => {
-    const accepted = await promptInstall();
-    if (!accepted) {
-      dismissInstallCard(event.slug);
-      setInstallCardHidden(true);
+    if (installMode !== "prompt") return setInstallCardHidden(false); // iPhone: show the steps again
+    if (!(await promptInstall())) hideInstallCard();
+  };
+
+  // ─── Zoom: pinch the viewfinder or tap the 1×/2× chip ──────────────────────
+  // Hardware zoom (the camera's own, most Android phones) when the track supports it; otherwise digital
+  // zoom — the preview is scaled and the photo cropped to match (iPhone, older Android).
+
+  const [zoom, setZoom] = useState(1);
+  const [zoomRange, setZoomRange] = useState<{ min: number; max: number; hardware: boolean }>({ min: 1, max: 4, hardware: false });
+  const zoomRef = useRef(1);
+  const zoomFrame = useRef(0);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ dist: number; zoom: number } | null>(null);
+
+  const applyZoom = (value: number) => {
+    const z = Math.min(zoomRange.max, Math.max(zoomRange.min, value));
+    zoomRef.current = z;
+    setZoom(z);
+    if (!zoomRange.hardware) return;
+    // Pinch fires many moves per frame: send the camera at most one zoom change per frame.
+    cancelAnimationFrame(zoomFrame.current);
+    zoomFrame.current = requestAnimationFrame(() => {
+      void streamRef.current?.getVideoTracks()[0]?.applyConstraints({ advanced: [{ zoom: zoomRef.current } as never] }).catch(() => {});
+    });
+  };
+
+  const zoomPresets = [zoomRange.min < 1 ? zoomRange.min : null, 1, 2, 3].filter(
+    (z): z is number => z !== null && z <= zoomRange.max,
+  );
+  const nextPreset = () => applyZoom(zoomPresets.find((z) => z > zoomRef.current + 0.05) ?? zoomPresets[0]!);
+
+  const pinchDistance = () => {
+    const [a, b] = [...pointers.current.values()];
+    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+  };
+  const onPointerDown = (e: PointerEvent<HTMLElement>) => {
+    enterFullscreen(); // returning guests land straight on the camera: their first tap hides the browser bars
+    if (camState !== "live" || (e.target as Element).closest("button, section")) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.current.size === 2) pinch.current = { dist: pinchDistance(), zoom: zoomRef.current };
+  };
+  const onPointerMove = (e: PointerEvent<HTMLElement>) => {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch.current && pointers.current.size >= 2 && pinch.current.dist > 0) {
+      applyZoom(pinch.current.zoom * (pinchDistance() / pinch.current.dist));
     }
+  };
+  const onPointerEnd = (e: PointerEvent<HTMLElement>) => {
+    pointers.current.delete(e.pointerId);
+    if (pointers.current.size < 2) pinch.current = null;
   };
 
   // ─── Live camera lifecycle ──────────────────────────────────────────────────
@@ -94,9 +154,18 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
         const caps = await ic.getPhotoCapabilities().catch(() => null);
         if (caps?.fillLightMode?.includes("flash")) support = "flash";
       }
-      const trackCaps = (track.getCapabilities?.() ?? {}) as { torch?: boolean };
+      const trackCaps = (track.getCapabilities?.() ?? {}) as { torch?: boolean; zoom?: { min: number; max: number } };
       if (support === "none" && trackCaps.torch) support = "torch";
       setFlashSupport(support);
+
+      // New camera (start or flip): back to 1× and find out what zoom it can do.
+      const hw = trackCaps.zoom && trackCaps.zoom.max > trackCaps.zoom.min ? trackCaps.zoom : null;
+      const range = hw ? { min: hw.min, max: Math.min(hw.max, 10), hardware: true } : { min: 1, max: 4, hardware: false };
+      setZoomRange(range);
+      const start = Math.min(range.max, Math.max(range.min, 1));
+      zoomRef.current = start;
+      setZoom(start);
+      if (hw) void track.applyConstraints({ advanced: [{ zoom: start } as never] }).catch(() => {});
       setCamState("live");
     } catch {
       setCamState("unavailable");
@@ -163,6 +232,8 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
         if (flashOn && flashSupport === "torch") await track?.applyConstraints({ advanced: [{ torch: false } as never] });
       }
       setFlashFx((n) => n + 1);
+      // Hardware zoom is already in the photo; digital zoom crops it to what the viewfinder showed.
+      if (!zoomRange.hardware && zoomRef.current > 1) blob = await cropCenter(blob, zoomRef.current);
       await handlePhoto(blob);
     } catch {
       setScreenFlash(false);
@@ -212,39 +283,46 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
   // ─── UI ─────────────────────────────────────────────────────────────────────
 
   return (
-    // Returning guests land straight on the camera: their first tap anywhere hides the browser bars.
-    <main className="camera" onPointerDown={enterFullscreen}>
-      {homeTip && (
-        <button
-          className="pill home-tip"
-          onClick={() => {
-            dismissHomeScreenTip();
-            setHomeTip(false);
-          }}
-        >
-          For full screen: tap <IconShare /> then “Add to Home Screen” <span aria-hidden>✕</span>
-        </button>
-      )}
-      {canInstall && !installCardHidden && (
+    <main
+      className="camera"
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerEnd}
+      onPointerCancel={onPointerEnd}
+    >
+      {installMode && !installCardHidden && (
         <section className="install-card" role="dialog" aria-label="Install SnapShare">
           <img src="/join/icons/icon-192.png" alt="" width="44" height="44" />
           <div className="install-copy">
             <strong>Install SnapShare</strong>
-            <span>Open {event.name} from your home screen, full screen.</span>
+            {installMode === "prompt" && <span>Open {event.name} from your home screen, full screen.</span>}
+            {installMode === "ios" && (
+              <span>
+                Tap <IconShare /> <b>Share</b> in your browser, then <b>Add to Home Screen</b> to open {event.name} full
+                screen.
+              </span>
+            )}
+            {installMode === "ios-in-app" && (
+              <span>
+                Open this page in <b>Safari</b> first (tap ••• then “Open in Safari”), then Share → <b>Add to Home Screen</b>.
+              </span>
+            )}
           </div>
           <div className="install-actions">
-            <button
-              className="btn small ghost"
-              onClick={() => {
-                dismissInstallCard(event.slug);
-                setInstallCardHidden(true);
-              }}
-            >
-              Not now
-            </button>
-            <button className="btn small light" onClick={install}>
-              Install
-            </button>
+            {installMode === "prompt" ? (
+              <>
+                <button className="btn small ghost" onClick={hideInstallCard}>
+                  Not now
+                </button>
+                <button className="btn small light" onClick={install}>
+                  Install
+                </button>
+              </>
+            ) : (
+              <button className="btn small light" onClick={hideInstallCard}>
+                Got it
+              </button>
+            )}
           </div>
         </section>
       )}
@@ -252,6 +330,8 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
         <video
           ref={videoRef}
           className={`viewfinder ${facing === "user" ? "mirror" : ""} ${camState === "live" ? "on" : ""}`}
+          // Digital zoom scales the preview; hardware zoom is done by the camera itself.
+          style={{ "--zoom": zoomRange.hardware ? 1 : zoom } as CSSProperties}
           playsInline
           muted
           autoPlay
@@ -295,7 +375,7 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
           <button className="btn ghost" onClick={() => uploadInputRef.current?.click()}>
             Choose from my photos
           </button>
-          {canInstall && installCardHidden && (
+          {installMode && installCardHidden && (
             <button className="btn ghost small" onClick={install}>
               Install the SnapShare app
             </button>
@@ -311,6 +391,11 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
           </div>
         ) : (
           <StatusPill eventId={event.id} guestToken={guestToken} />
+        )}
+        {camState === "live" && (
+          <button className="zoom-chip" aria-label={`Zoom ${formatZoom(zoom)}, tap to change`} onClick={nextPreset}>
+            {formatZoom(zoom)}
+          </button>
         )}
         <div className="controls">
           <button ref={galleryBtnRef} className="gallery-btn" aria-label="Open live gallery" onClick={onOpenFeed}>
@@ -350,7 +435,7 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
             <button onClick={() => cameraInputRef.current?.click()}>Use phone camera</button>
             <span aria-hidden>·</span>
             <button onClick={() => uploadInputRef.current?.click()}>Upload from photos</button>
-            {canInstall && installCardHidden && (
+            {installMode && installCardHidden && (
               <>
                 <span aria-hidden>·</span>
                 <button onClick={install}>Install app</button>
@@ -453,7 +538,10 @@ const IconCamera = () => (
     <circle cx="12" cy="13.5" r="3.5" />
   </Svg>
 );
-/** Safari's Share icon, so the home-screen tip matches what the guest sees. */
+/** "1×", "2.4×", "0.5×" — like the system camera's zoom label. */
+const formatZoom = (z: number) => `${z < 1 ? z.toFixed(1) : Math.round(z * 10) / 10}×`;
+
+/** Safari's Share icon, so the install steps match what the guest sees. */
 const IconShare = () => (
   <Svg>
     <path d="M12 15V3M8 7l4-4 4 4" />

@@ -99,10 +99,14 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 
 /* ─── Camera (always dark) ─────────────────────────────────── */
 
-.camera { position: fixed; inset: 0; background: #000; color: #fff; overflow: hidden; user-select: none; }
-.viewfinder { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s; }
+/* touch-action: none — pinches zoom the camera, not the page (the installed app has no page zoom anyway). */
+.camera { position: fixed; inset: 0; background: #000; color: #fff; overflow: hidden; user-select: none; touch-action: none; }
+.viewfinder {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.3s;
+  transform: scale(var(--zoom, 1));
+}
 .viewfinder.on { opacity: 1; }
-.viewfinder.mirror { transform: scaleX(-1); }
+.viewfinder.mirror { transform: scaleX(-1) scale(var(--zoom, 1)); }
 
 .grid-overlay {
   position: absolute; inset: 0; pointer-events: none;
@@ -171,13 +175,7 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 .pill.ok { background: rgba(46, 140, 87, 0.85); }
 .pill.warn { background: rgba(194, 65, 58, 0.9); }
 .pill.hidden { visibility: hidden; }
-.home-tip {
-  position: absolute; z-index: 6; left: 50%; transform: translateX(-50%);
-  top: calc(72px + var(--safe-top)); white-space: nowrap; font-size: 13px;
-}
-.home-tip svg { width: 17px; height: 17px; margin: 0 -2px; }
-
-/* Android "Install SnapShare?" card — under the top bar, never over the shutter. */
+/* "Install SnapShare" card (Android one-tap / iPhone steps) — under the top bar, never over the shutter. */
 .install-card {
   position: absolute; z-index: 7; left: 12px; right: 12px; top: calc(72px + var(--safe-top));
   max-width: 460px; margin: 0 auto;
@@ -190,11 +188,19 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 .install-card img { border-radius: 11px; }
 .install-copy { display: grid; gap: 2px; font-size: 14px; line-height: 1.35; }
 .install-copy span { color: rgba(255,255,255,0.7); font-size: 13px; }
+.install-copy b { color: #fff; font-weight: 600; }
+.install-copy svg { width: 16px; height: 16px; vertical-align: -3px; }
 .install-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
 .install-actions .btn { min-height: 38px; color: #fff; }
 .btn.light { background: #fff; color: #000 !important; }
 @keyframes card-in { from { opacity: 0; transform: translateY(-8px); } }
-.home-tip span { opacity: 0.6; margin-left: 4px; }
+
+/* Zoom chip above the shutter, like the system camera's "1×". */
+.zoom-chip {
+  min-width: 44px; height: 32px; padding: 0 10px; border: none; border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45); color: #ffd98a; font-size: 13px; font-weight: 700;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
 
 .fallback {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -228,6 +234,7 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
   .controls { flex-direction: column-reverse; height: 100%; max-height: 340px; width: auto; max-width: none; justify-content: space-between; }
   .shutter { width: 72px; height: 72px; }
   .shutter span { width: 56px; height: 56px; }
+  .zoom-chip { margin-right: 14px; }
   /* Status and the alternative actions move out of the shutter column. */
   .cam-bottom > .pill { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); white-space: nowrap; }
   .alt-actions { position: fixed; bottom: calc(10px + var(--safe-bottom)); left: 50%; transform: translateX(-50%); white-space: nowrap; }
