@@ -1,0 +1,9 @@
+{
+  "name": "SnapShare",
+  "short_name": "SnapShare",
+  "description": "Share your photos with the event, live.",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "background_color": "#000000",
+  "theme_color": "#000000"
+}

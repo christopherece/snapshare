@@ -1,6 +1,7 @@
 import type { EventPublicDTO } from "@snapshare/shared";
 import { type FormEvent, useEffect, useState } from "react";
 import { API_URL, ApiError, api } from "./api";
+import { enterFullscreen } from "./fullscreen";
 import { retryBlocked } from "./queue";
 import { type GuestSession, deviceId, sessions } from "./session";
 
@@ -45,6 +46,7 @@ export function Join({
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!event) return;
+    enterFullscreen(); // must run inside the tap, before any await
     setBusy(true);
     setError(null);
     try {

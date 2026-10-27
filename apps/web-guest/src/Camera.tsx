@@ -1,4 +1,5 @@
 import { type ChangeEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { dismissHomeScreenTip, enterFullscreen, shouldSuggestHomeScreen } from "./fullscreen";
 import { UnsupportedImageError, captureVideoFrame, looksLikeHeic } from "./image";
 import { enqueuePhoto, retryBlocked, useQueue } from "./queue";
 import type { GuestSession } from "./session";
@@ -48,6 +49,7 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
   const [screenFlash, setScreenFlash] = useState(false);
   const [flying, setFlying] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [homeTip, setHomeTip] = useState(shouldSuggestHomeScreen);
 
   // ─── Live camera lifecycle ──────────────────────────────────────────────────
 
@@ -199,7 +201,19 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
   // ─── UI ─────────────────────────────────────────────────────────────────────
 
   return (
-    <main className="camera">
+    // Returning guests land straight on the camera: their first tap anywhere hides the browser bars.
+    <main className="camera" onPointerDown={enterFullscreen}>
+      {homeTip && (
+        <button
+          className="pill home-tip"
+          onClick={() => {
+            dismissHomeScreenTip();
+            setHomeTip(false);
+          }}
+        >
+          For full screen: tap <IconShare /> then “Add to Home Screen” <span aria-hidden>✕</span>
+        </button>
+      )}
       {liveSupported && (
         <video
           ref={videoRef}
@@ -392,6 +406,13 @@ const IconCamera = () => (
   <Svg>
     <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
     <circle cx="12" cy="13.5" r="3.5" />
+  </Svg>
+);
+/** Safari's Share icon, so the home-screen tip matches what the guest sees. */
+const IconShare = () => (
+  <Svg>
+    <path d="M12 15V3M8 7l4-4 4 4" />
+    <path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1" />
   </Svg>
 );
 const IconUpload = () => (
