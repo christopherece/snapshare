@@ -25,7 +25,17 @@ interface ImageCaptureLike {
 declare const ImageCapture: { new (track: MediaStreamTrack): ImageCaptureLike } | undefined;
 
 type Facing = "environment" | "user";
-type CamState = "starting" | "live" | "unavailable";
+/** "phone": the guest chose their phone's own camera app — no live viewfinder until they switch back. */
+type CamState = "starting" | "live" | "unavailable" | "phone";
+
+const PHONE_CAMERA_KEY = "snapshare.phoneCamera";
+const prefersPhoneCamera = () => {
+  try {
+    return localStorage.getItem(PHONE_CAMERA_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
 
 interface Props {
   session: GuestSession;
@@ -49,7 +59,19 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
   const uploadInputRef = useRef<HTMLInputElement>(null);
 
   const liveSupported = window.isSecureContext && !!navigator.mediaDevices?.getUserMedia;
-  const [camState, setCamState] = useState<CamState>(liveSupported ? "starting" : "unavailable");
+  // Phone camera mode sticks (across shots and reloads) until the guest switches back. Browsers return to
+  // the page after every photo and a page can't reopen the camera by itself, so each shot is one tap.
+  const [phoneCamera, setPhoneCamera] = useState(prefersPhoneCamera);
+  const [camState, setCamState] = useState<CamState>(
+    !liveSupported ? "unavailable" : phoneCamera ? "phone" : "starting",
+  );
+  const choosePhoneCamera = (on: boolean) => {
+    try {
+      on ? localStorage.setItem(PHONE_CAMERA_KEY, "1") : localStorage.removeItem(PHONE_CAMERA_KEY);
+    } catch {}
+    setPhoneCamera(on);
+    if (on) cameraInputRef.current?.click(); // still inside the tap, so the camera may open
+  };
   const [facing, setFacing] = useState<Facing>("environment");
   const [flashOn, setFlashOn] = useState(false);
   const [flashSupport, setFlashSupport] = useState<"none" | "flash" | "torch">("none");
@@ -132,6 +154,11 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
 
   const startStream = useCallback(async () => {
     if (!liveSupported) return;
+    if (phoneCamera) {
+      stopStream();
+      setCamState("phone");
+      return;
+    }
     stopStream();
     setCamState("starting");
     try {
@@ -170,7 +197,7 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
     } catch {
       setCamState("unavailable");
     }
-  }, [facing, liveSupported]);
+  }, [facing, liveSupported, phoneCamera]);
 
   useEffect(() => {
     void startStream();
@@ -364,23 +391,34 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
         )}
       </header>
 
-      {camState === "unavailable" && (
+      {(camState === "unavailable" || camState === "phone") && (
         <section className="fallback">
-          <p className="kicker">Share the moment</p>
-          <h2>Take photos for {event.name}</h2>
-          <p className="muted">They'll appear live on the big screen and in the gallery.</p>
+          <p className="kicker">{camState === "phone" ? "Phone camera" : "Share the moment"}</p>
+          <h2>{camState === "phone" ? "Tap to take the next photo" : `Take photos for ${event.name}`}</h2>
+          <p className="muted">
+            {camState === "phone"
+              ? "Your phone's camera opens, and every photo uploads on its own. You'll come back here after each shot."
+              : "They'll appear live on the big screen and in the gallery."}
+          </p>
           <button className="btn primary big" onClick={() => cameraInputRef.current?.click()}>
             <IconCamera /> Take a photo
           </button>
           <button className="btn ghost" onClick={() => uploadInputRef.current?.click()}>
             Choose from my photos
           </button>
+          {camState === "phone" && (
+            <button className="btn ghost small" onClick={() => choosePhoneCamera(false)}>
+              Switch to the SnapShare camera
+            </button>
+          )}
           {installMode && installCardHidden && (
             <button className="btn ghost small" onClick={install}>
               Install the SnapShare app
             </button>
           )}
-          {liveSupported && <p className="fineprint">Allow camera access in your browser settings to use the in-app camera.</p>}
+          {camState === "unavailable" && liveSupported && (
+            <p className="fineprint">Allow camera access in your browser settings to use the in-app camera.</p>
+          )}
         </section>
       )}
 
@@ -403,7 +441,7 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
             <PendingBadge eventId={event.id} />
           </button>
 
-          {camState === "unavailable" ? (
+          {camState === "unavailable" || camState === "phone" ? (
             <button className="shutter alt" aria-label="Take a photo" onClick={() => cameraInputRef.current?.click()}>
               <IconCamera />
             </button>
@@ -432,7 +470,7 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
         </div>
         {camState === "live" && (
           <div className="alt-actions">
-            <button onClick={() => cameraInputRef.current?.click()}>Use phone camera</button>
+            <button onClick={() => choosePhoneCamera(true)}>Use phone camera</button>
             <span aria-hidden>·</span>
             <button onClick={() => uploadInputRef.current?.click()}>Upload from photos</button>
             {installMode && installCardHidden && (

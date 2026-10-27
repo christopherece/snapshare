@@ -223,8 +223,15 @@ label.check small, .toggle small { display: block; color: var(--muted); font-wei
 .tile-actions button { width: 28px; height: 28px; border: none; border-radius: 50%; background: rgba(255, 255, 255, 0.18); color: #fff; cursor: pointer; font-size: 13px; }
 .tile-actions button:hover { background: rgba(255, 255, 255, 0.35); }
 
-.lightbox { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: rgba(0, 0, 0, 0.92); padding: 24px 24px 88px; }
+/* One fixed-size cell: without it the row grows to the photo's full height, so big photos overflow
+   downwards instead of shrinking to fit — they ended up at the bottom of the screen. */
+.lightbox {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center;
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  background: rgba(0, 0, 0, 0.92); padding: 24px 80px 88px;
+}
 .lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
+@media (max-width: 640px) { .lightbox { padding: 16px 12px 120px; } }
 .lightbox .nav { position: absolute; top: 50%; transform: translateY(-50%); width: 48px; height: 48px; border-radius: 50%; border: none; background: rgba(255, 255, 255, 0.12); color: #fff; font-size: 28px; cursor: pointer; }
 .lightbox .prev { left: 20px; }
 .lightbox .next { right: 20px; }
