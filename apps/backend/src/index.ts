@@ -15,6 +15,7 @@ import { downloadRoutes } from "./routes/downloads.ts";
 import { guestRoutes } from "./routes/guest.ts";
 import { hostRoutes } from "./routes/host.ts";
 import { joinPage } from "./routes/join-page.ts";
+import { guestManifest } from "./lib/guest-manifest.ts";
 
 const app = new Hono()
   .use(logger())
@@ -34,10 +35,16 @@ if (env.STATIC_DIR) {
   const dir = env.STATIC_DIR;
   // Bundled JS/CSS have content-hashed names, so browsers may keep them forever; the HTML shell
   // must always be revalidated so a new deploy is picked up immediately.
+  // The guest app's service worker and manifest keep fixed names, so they must be revalidated too.
   const cacheHeaders = (path: string, c: { header: (k: string, v: string) => void }) =>
-    c.header("Cache-Control", path.endsWith(".html") ? "no-cache" : "public, max-age=31536000, immutable");
+    c.header(
+      "Cache-Control",
+      /(\.html|\/sw\.js|\.webmanifest)$/.test(path) ? "no-cache" : "public, max-age=31536000, immutable",
+    );
 
   app.get("/", serveStatic({ root: dir, rewriteRequestPath: () => "/landing/index.html", onFound: cacheHeaders }));
+  // Per-event manifest, so an installed guest app opens straight into its event.
+  app.get("/join/manifest.webmanifest", (c) => guestManifest(`${dir}/join/manifest.webmanifest`, c.req.query("slug")));
   app.use("/landing/*", serveStatic({ root: dir, onFound: cacheHeaders }));
 
   for (const name of ["join", "host", "slideshow"]) {

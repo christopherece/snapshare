@@ -48,7 +48,8 @@ COPY apps/web-landing apps/web-landing
 RUN cd apps/web-landing && bun build ./index.html --outdir /static/landing --production --public-path /landing/ \
  && cd ../web-host && bun build ./index.html --outdir /static/host --production --public-path /host/ \
  && cd ../web-slideshow && bun build ./index.html --outdir /static/slideshow --production --public-path /slideshow/ \
- && cd ../web-guest && bun build ./index.html --outdir /static/join --production --splitting --public-path /join/
+ && cd ../web-guest && bun build ./index.html --outdir /static/join --production --splitting --public-path /join/ \
+ && cp -R public/. /static/join/
 
 # ─── 3. Runtime ───
 FROM bun-base AS runtime

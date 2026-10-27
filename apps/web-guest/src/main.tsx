@@ -68,4 +68,21 @@ function App() {
   );
 }
 
+// The manifest and icons are served as-is from public/ (the manifest needs fixed icon paths), which the
+// HTML bundler can't resolve at build time — so link them here.
+for (const [rel, href] of [
+  ["manifest", `/join/manifest.webmanifest${slugFromPath() ? `?slug=${slugFromPath()}` : ""}`],
+  ["apple-touch-icon", "/join/icons/apple-touch-icon.png"],
+] as const) {
+  const link = document.createElement("link");
+  link.rel = rel;
+  link.href = href;
+  document.head.append(link);
+}
+
 createRoot(document.getElementById("root")!).render(<App />);
+
+// Makes the app installable on Android ("Install app") and lets it open offline. HTTPS / localhost only.
+if ("serviceWorker" in navigator && window.isSecureContext) {
+  void navigator.serviceWorker.register("/join/sw.js", { scope: "/join/" }).catch(() => {});
+}
