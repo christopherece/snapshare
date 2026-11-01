@@ -1,4 +1,4 @@
-import { and, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { db, schema } from "../db/client.ts";
 import type { Event } from "../db/schema.ts";
@@ -97,21 +97,4 @@ export async function deleteEventWithPhotos(eventId: string) {
     await Promise.allSettled(keys.slice(i, i + 20).map((k) => s3.delete(k)));
   }
   return keys.length;
-}
-
-/** Delete galleries whose keep-until date (their plan's gallery period) has passed. Hourly, and once at startup. */
-export function scheduleExpiredGalleryCleanup() {
-  const run = async () => {
-    const expired = await db
-      .select({ id: schema.events.id, name: schema.events.name })
-      .from(schema.events)
-      .where(lt(schema.events.keepUntil, new Date()));
-    for (const e of expired) {
-      const files = await deleteEventWithPhotos(e.id);
-      console.log(`[retention] deleted expired gallery "${e.name}" (${e.id}), ${files} files`);
-    }
-  };
-  const safeRun = () => run().catch((err) => console.error("[retention]", err));
-  void safeRun();
-  setInterval(safeRun, 60 * 60_000).unref();
 }

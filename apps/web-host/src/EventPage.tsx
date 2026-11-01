@@ -531,8 +531,16 @@ function KeepUntilNotice({ keepUntil }: { keepUntil: string }) {
   const date = until.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
   return days <= 14 ? (
     <p className="notice warn">
-      This gallery will be <strong>deleted on {date}</strong>
-      {days > 0 ? ` (in ${days} day${days === 1 ? "" : "s"})` : ""}. Download your photos before then, or ask us to keep it longer.
+      {days > 0 ? (
+        <>
+          Your gallery period ends on <strong>{date}</strong> (in {days} day{days === 1 ? "" : "s"}).
+        </>
+      ) : (
+        <>
+          Your gallery period <strong>ended on {date}</strong>.
+        </>
+      )}{" "}
+      After that the gallery can be deleted. Download your photos now, or ask us to keep it longer.
     </p>
   ) : (
     <p className="notice">

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Account } from "./Account";
-import { Admin } from "./Admin";
+import { Admin, isExpired } from "./Admin";
 import { type Me, api, setUnauthorizedHandler, tokenStore } from "./api";
 import { EventList } from "./EventList";
 import { EventPage } from "./EventPage";
@@ -46,6 +46,12 @@ function App() {
   };
 
   const isAdmin = me?.role === "admin";
+  const [expiredCount, setExpiredCount] = useState(0);
+  useEffect(() => {
+    if (!isAdmin) return;
+    api.admin.events().then((list) => setExpiredCount(list.filter(isExpired).length), () => {});
+  }, [isAdmin, route]);
+
   const page =
     route.page === "event" ? (
       <EventPage key={route.id} eventId={route.id} token={token} me={me} />
@@ -78,6 +84,11 @@ function App() {
           {isAdmin && (
             <a href="#/admin" className={`nav-link ${route.page === "admin" ? "active" : ""}`}>
               Admin
+              {expiredCount > 0 && (
+                <span className="nav-badge" title={`${expiredCount} gallery period${expiredCount === 1 ? "" : "s"} ended`}>
+                  {expiredCount}
+                </span>
+              )}
             </a>
           )}
           <a href="#/account" className={`nav-link ${route.page === "account" ? "active" : ""}`}>

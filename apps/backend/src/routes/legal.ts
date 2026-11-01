@@ -85,7 +85,7 @@ const termsPage = () =>
   <li>You're responsible for your event: telling guests how photos will be shared (for example on the QR flyer), keeping an eye on what appears on screen, and acting on reports.</li>
   <li>Use the photos for your own personal or event purposes, and respect guests' requests to remove photos of them.</li>
   <li>You can delete photos, close uploads, or ask us to delete the whole event at any time.</li>
-  <li>Your gallery is kept for your plan's gallery period, shown in your dashboard. Download the photos you want to keep before it ends — after that they're deleted for good.</li>
+  <li>Your gallery is kept for your plan's gallery period, shown in your dashboard. Download the photos you want to keep before it ends — after that the gallery is deleted for good.</li>
 </ul>
 
 <h2>Responsibility</h2>
@@ -123,7 +123,7 @@ const privacyPage = () =>
 <p>Your photos, display name, likes and comments are visible to the event's host(s) and its other guests, and photos may appear on the slideshow at the venue. Reports are only visible to the host. We use service providers to run SnapShare — such as our hosting and Cloudflare, which carries the site's traffic — and they handle data only to provide that service.</p>
 
 <h2>How long we keep it</h2>
-<p>Each event's gallery is kept for the period included in the host's plan (for example 90 days or 1 year), then the gallery and all its photos are deleted automatically. Photos are deleted sooner if the host deletes them or the event, or if you ask us to remove photos of you. Hosts can delete any photo at any time.</p>
+<p>Each event's gallery is kept for the period included in the host's plan (for example 90 days or 1 year), after which the gallery and all its photos are deleted. Photos are deleted sooner if the host deletes them or the event, or if you ask us to remove photos of you. Hosts can delete any photo at any time.</p>
 
 <h2>Your rights</h2>
 <p>Under the New Zealand Privacy Act 2020 you can ask to see or correct the information we hold about you, and ask for photos of you to be removed. If you're not happy with how we've handled a privacy matter, you can contact the <a href="https://www.privacy.org.nz">Office of the Privacy Commissioner</a>.</p>

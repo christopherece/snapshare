@@ -2,6 +2,9 @@ import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { type HostAccount, type HostEvent, type Invite, api } from "./api";
 import { type AdminTab, inviteLink } from "./router";
 
+/** The plan's gallery period has ended: the admin should download/confirm and delete it. */
+export const isExpired = (e: { keepUntil: string | null }) => !!e.keepUntil && new Date(e.keepUntil) < new Date();
+
 const fmt = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "—";
 
@@ -69,6 +72,7 @@ function EventsTab() {
       await api.admin.deleteEvent(e.id);
     });
 
+  const expired = events?.filter(isExpired) ?? [];
   const q = query.trim().toLowerCase();
   const shown = events?.filter(
     (e) => !q || [e.name, e.slug, e.owner?.name, e.owner?.email].some((v) => v?.toLowerCase().includes(q)),
@@ -81,6 +85,33 @@ function EventsTab() {
         <input className="search" placeholder="Search events or customers…" value={query} onChange={(e) => setQuery(e.target.value)} />
       </div>
       {error && <p className="error small">{error}</p>}
+      {expired.length > 0 && (
+        <div className="report-alert expired-alert" role="status">
+          <p>
+            <strong>
+              {expired.length} {expired.length === 1 ? "gallery has" : "galleries have"} passed the end of their gallery period
+            </strong>{" "}
+            — delete {expired.length === 1 ? "it" : "them"}, or extend the date with Edit.
+          </p>
+          <ul>
+            {expired.map((e) => (
+              <li key={e.id}>
+                <span>
+                  <strong>{e.name}</strong> · {e.owner?.name} · ended {fmt(e.keepUntil)} · {e.photoCount ?? 0} photos
+                </span>
+                <span className="row">
+                  <button className="btn small" onClick={() => setEditing(e)}>
+                    Edit
+                  </button>
+                  <button className="btn small danger" onClick={() => remove(e)}>
+                    Delete
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {!events && <p className="muted">Loading…</p>}
       {events?.length === 0 && <p className="muted">No events yet. Invite a customer from the Invites tab.</p>}
 
@@ -120,7 +151,13 @@ function EventsTab() {
                   ) : (
                     <span className="badge">Uploads closed</span>
                   )}
-                  <div className="muted small">{e.keepUntil ? `Deletes ${fmt(e.keepUntil)}` : "Kept forever"}</div>
+                  {isExpired(e) ? (
+                    <div>
+                      <span className="badge danger">Period ended {fmt(e.keepUntil)}</span>
+                    </div>
+                  ) : (
+                    <div className="muted small">{e.keepUntil ? `Keep until ${fmt(e.keepUntil)}` : "Kept forever"}</div>
+                  )}
                 </td>
                 <td className="actions">
                   <a className="btn small" href={`#/events/${e.id}`}>
@@ -257,7 +294,7 @@ function EventEditor({ event, onClose, onSaved }: { event: HostEvent; onClose: (
             Keep gallery until
             <input type="date" value={keepUntil} onChange={(e) => setKeepUntil(e.target.value)} />
             <small className="muted">
-              The plan's gallery period. After this date the gallery and all its photos are deleted. Leave empty to keep it forever.
+              The plan's gallery period. After this date you'll be prompted here to delete the gallery. Nothing is deleted automatically. Leave empty to keep it forever.
             </small>
             <span className="row wrap">
               {(
