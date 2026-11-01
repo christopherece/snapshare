@@ -262,6 +262,7 @@ function EventEditor({ event, onClose, onSaved }: { event: HostEvent; onClose: (
 
 function CustomersTab() {
   const [hosts, setHosts] = useState<HostAccount[] | null>(null);
+  const [resetting, setResetting] = useState<HostAccount | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => api.admin.hosts().then(setHosts, (e) => setError(e.message)), []);
@@ -318,10 +319,18 @@ function CustomersTab() {
                           Disable
                         </button>
                       )}
+                      <button className="btn small" onClick={() => setResetting(h)}>
+                        Reset password
+                      </button>
                       <button className="btn small ghost" onClick={() => update(h, { role: h.role === "admin" ? "host" : "admin" })}>
                         {h.role === "admin" ? "Remove admin" : "Make admin"}
                       </button>
                     </>
+                  )}
+                  {h.isMe && (
+                    <a className="btn small ghost" href="#/account">
+                      Change my password
+                    </a>
                   )}
                 </td>
               </tr>
@@ -329,7 +338,102 @@ function CustomersTab() {
           </tbody>
         </table>
       </div>
+      {resetting && <ResetPasswordDialog host={resetting} onClose={() => setResetting(null)} />}
     </section>
+  );
+}
+
+/** Easy-to-read random password (no look-alike characters) for handing to a customer. */
+function generatePassword() {
+  const chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(14));
+  const raw = Array.from(bytes, (b) => chars[b % chars.length]).join("");
+  return `${raw.slice(0, 5)}-${raw.slice(5, 10)}-${raw.slice(10)}`;
+}
+
+function ResetPasswordDialog({ host, onClose }: { host: HostAccount; onClose: () => void }) {
+  const [password, setPassword] = useState(generatePassword);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    addEventListener("keydown", onKey);
+    return () => removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const save = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api.admin.resetPassword(host.id, password);
+      setDone(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't reset the password");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(password);
+      setCopied(true);
+    } catch {}
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <form className="modal card" onSubmit={save} onClick={(e) => e.stopPropagation()}>
+        <h2>Reset password</h2>
+        <p className="muted small">
+          {host.name} · {host.email}
+        </p>
+        {done ? (
+          <>
+            <p className="notice ok">
+              Password reset. {host.name} has been signed out everywhere — send them the new password below.
+            </p>
+            <div className="row">
+              <input readOnly value={password} onFocus={(e) => e.currentTarget.select()} className="mono" />
+              <button type="button" className="btn small" onClick={copy}>
+                {copied ? "Copied ✓" : "Copy"}
+              </button>
+            </div>
+            <div className="row end">
+              <button type="button" className="btn primary" onClick={onClose}>
+                Done
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <label>
+              New password (8+ characters)
+              <div className="row">
+                <input value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} className="mono" />
+                <button type="button" className="btn small" onClick={() => setPassword(generatePassword())}>
+                  Generate
+                </button>
+              </div>
+            </label>
+            <p className="muted small">They'll be signed out on every device and can sign in with this password straight away.</p>
+            {error && <p className="error">{error}</p>}
+            <div className="row end">
+              <button type="button" className="btn ghost" onClick={onClose}>
+                Cancel
+              </button>
+              <button className="btn primary" disabled={busy || password.length < 8}>
+                {busy ? "Saving…" : "Reset password"}
+              </button>
+            </div>
+          </>
+        )}
+      </form>
+    </div>
   );
 }
 

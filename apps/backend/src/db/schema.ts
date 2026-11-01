@@ -36,6 +36,8 @@ export const hosts = pgTable("hosts", {
   role: hostRole("role").notNull().default("host"),
   /** Disabled accounts can't sign in; existing sessions stop working immediately. */
   disabledAt: timestamp("disabled_at", { withTimezone: true }),
+  /** Login tokens issued before this (e.g. before a password change or reset) are no longer accepted. */
+  sessionsValidAfter: timestamp("sessions_valid_after", { withTimezone: true }),
   ...timestamps,
 });
 

@@ -404,3 +404,8 @@ input:focus-visible { outline: none; }
   animation: appear 0.3s ease;
 }
 .host-terms { margin: 16px 0 0; } .host-terms a { color: inherit; text-underline-offset: 3px; }
+
+/* Account page */
+.account-card { max-width: 480px; display: grid; gap: 14px; }
+.notice.ok { background: color-mix(in srgb, #3fb26b 14%, var(--surface)); margin: 0; }
+.mono { font-family: var(--font-mono); letter-spacing: 0.02em; }

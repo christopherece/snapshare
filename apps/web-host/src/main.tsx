@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { Account } from "./Account";
 import { Admin } from "./Admin";
 import { type Me, api, setUnauthorizedHandler, tokenStore } from "./api";
 import { EventList } from "./EventList";
@@ -50,6 +51,14 @@ function App() {
       <EventPage key={route.id} eventId={route.id} token={token} me={me} />
     ) : !me ? (
       <p className="muted">Loading…</p>
+    ) : route.page === "account" ? (
+      <Account
+        me={me}
+        onTokenChanged={(t) => {
+          tokenStore.set(t);
+          setToken(t);
+        }}
+      />
     ) : route.page === "admin" && isAdmin ? (
       <Admin tab={route.tab} />
     ) : (
@@ -71,6 +80,9 @@ function App() {
               Admin
             </a>
           )}
+          <a href="#/account" className={`nav-link ${route.page === "account" ? "active" : ""}`}>
+            Account
+          </a>
           <button className="btn ghost small" onClick={signOut} title={me ? `Signed in as ${me.email}` : undefined}>
             Sign out
           </button>

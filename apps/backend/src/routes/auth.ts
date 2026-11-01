@@ -5,7 +5,7 @@ import { z } from "zod";
 import { db, schema } from "../db/client.ts";
 import type { Host } from "../db/schema.ts";
 import { env } from "../env.ts";
-import { type AppEnv, hashToken, requireHost, signHostToken } from "../lib/auth.ts";
+import { type AppEnv, hashToken, requireHost, revokeHostSessions, signHostToken } from "../lib/auth.ts";
 import { body } from "../lib/http.ts";
 import { TokenBucket, clientIp, rateLimit } from "../lib/rate-limit.ts";
 
@@ -90,6 +90,27 @@ export const authRoutes = new Hono<AppEnv>()
     if (!host || !ok) throw new HTTPException(401, { message: "Invalid email or password" });
     if (host.disabledAt) throw new HTTPException(403, { message: "This account has been disabled" });
     return c.json({ token: await signHostToken(host.id), host: publicHost(host) });
+  })
+
+  /** Change your own password. Signs out your other sessions; returns a fresh token for this one. */
+  .post("/password", limited, requireHost, async (c) => {
+    const input = await body(
+      c,
+      z.object({ currentPassword: z.string().min(1).max(200), newPassword: z.string().min(8).max(200) }),
+    );
+    const host = c.get("host");
+    if (!(await Bun.password.verify(input.currentPassword, host.passwordHash))) {
+      throw new HTTPException(400, { message: "Your current password isn't right" });
+    }
+    if (input.currentPassword === input.newPassword) {
+      throw new HTTPException(400, { message: "Choose a password different from your current one" });
+    }
+    await db
+      .update(schema.hosts)
+      .set({ passwordHash: await Bun.password.hash(input.newPassword) })
+      .where(eq(schema.hosts.id, host.id));
+    await revokeHostSessions(host.id);
+    return c.json({ token: await signHostToken(host.id) });
   })
 
   /** Lets the sign-up page greet the invitee and pre-fill (and lock) their email. */

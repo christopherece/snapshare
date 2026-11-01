@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { db, schema } from "../db/client.ts";
-import { type AppEnv, hashToken, randomToken, requireAdmin, requireHost } from "../lib/auth.ts";
+import { type AppEnv, hashToken, randomToken, requireAdmin, requireHost, revokeHostSessions } from "../lib/auth.ts";
 import { deleteEventWithPhotos, eventInput, hostEventView, photoCounts, updateEvent } from "../lib/events.ts";
 import { body, notFound } from "../lib/http.ts";
 
@@ -65,6 +65,23 @@ export const adminRoutes = new Hono<AppEnv>()
       .groupBy(hosts.id)
       .orderBy(asc(hosts.createdAt));
     return c.json(rows.map((r) => ({ ...r, disabled: r.disabledAt !== null, isMe: r.id === c.get("hostId") })));
+  })
+
+  /** Set a new password for a customer. Signs them out everywhere; tell them the new password yourself. */
+  .post("/hosts/:id/password", async (c) => {
+    const input = await body(c, z.object({ password: z.string().min(8).max(200) }));
+    const id = c.req.param("id");
+    if (id === c.get("hostId")) {
+      throw new HTTPException(400, { message: "Change your own password from your Account page" });
+    }
+    const [updated] = await db
+      .update(hosts)
+      .set({ passwordHash: await Bun.password.hash(input.password) })
+      .where(eq(hosts.id, id))
+      .returning({ id: hosts.id, email: hosts.email });
+    if (!updated) notFound("Host");
+    await revokeHostSessions(id);
+    return c.json({ reset: true, email: updated.email });
   })
 
   .patch("/hosts/:id", async (c) => {

@@ -6,9 +6,10 @@ export type Route =
   | { page: "events" }
   | { page: "event"; id: string }
   | { page: "admin"; tab: AdminTab }
-  | { page: "invite"; token: string };
+  | { page: "invite"; token: string }
+  | { page: "account" };
 
-/** Tiny hash router: #/  #/events/<id>  #/admin/<tab>  #/invite/<token> */
+/** Tiny hash router: #/  #/events/<id>  #/admin/<tab>  #/invite/<token>  #/account */
 export function useRoute(): Route {
   const [hash, setHash] = useState(location.hash);
   useEffect(() => {
@@ -25,6 +26,7 @@ export function useRoute(): Route {
     const tab = admin[1] === "customers" || admin[1] === "invites" ? admin[1] : "events";
     return { page: "admin", tab };
   }
+  if (hash.startsWith("#/account")) return { page: "account" };
   return { page: "events" };
 }
 

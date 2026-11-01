@@ -16,9 +16,9 @@ const schema = z.object({
   JWT_SECRET: z.string().min(32),
 
   /** Shown on the Guest terms / Privacy notice pages (/terms, /privacy). */
-  OPERATOR_NAME: z.string().default("SnapShare"),
+  OPERATOR_NAME: z.string().default("TopITSolutions"),
   /** Where guests and hosts can ask about their photos or request removal. Shown on the legal pages. */
-  CONTACT_EMAIL: z.string().email().optional(),
+  CONTACT_EMAIL: z.string().email().default("chris.ancheta@topitsolutions.co.nz"),
   /** A photo reported by this many different guests is hidden until the host reviews it (0 = never). */
   REPORTS_TO_AUTO_HIDE: z.coerce.number().int().min(0).default(3),
 

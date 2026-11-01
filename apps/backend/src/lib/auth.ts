@@ -32,13 +32,21 @@ export function signHostToken(hostId: string) {
   return sign({ sub: hostId, iat: now, exp: now + HOST_TOKEN_TTL }, env.JWT_SECRET, "HS256");
 }
 
-async function verifyHostToken(token: string) {
+async function verifyHostToken(token: string): Promise<{ hostId: string; issuedAt: number } | null> {
   try {
     const payload = await verify(token, env.JWT_SECRET, "HS256");
-    return typeof payload.sub === "string" ? payload.sub : null;
+    if (typeof payload.sub !== "string") return null;
+    return { hostId: payload.sub, issuedAt: typeof payload.iat === "number" ? payload.iat : 0 };
   } catch {
     return null;
   }
+}
+
+/** Ends every existing session for a host (password changed/reset); sign a new token afterwards to stay signed in. */
+export async function revokeHostSessions(hostId: string) {
+  // Whole seconds, so a token signed right after this (same second) still counts as valid.
+  const at = new Date(Math.floor(Date.now() / 1000) * 1000);
+  await db.update(schema.hosts).set({ sessionsValidAfter: at }).where(eq(schema.hosts.id, hostId));
 }
 
 async function findGuestByToken(token: string) {
@@ -58,8 +66,8 @@ function bearer(c: Context) {
 /** Host dashboard routes: `Authorization: Bearer <jwt>`. Checks the account still exists and isn't disabled. */
 export const requireHost: MiddlewareHandler<AppEnv> = async (c, next) => {
   const token = bearer(c);
-  const hostId = token ? await verifyHostToken(token) : null;
-  const host = hostId ? await findActiveHost(hostId) : null;
+  const claims = token ? await verifyHostToken(token) : null;
+  const host = claims ? await findActiveHost(claims.hostId, claims.issuedAt) : null;
   if (!host) throw new HTTPException(401, { message: "Host authentication required" });
   c.set("hostId", host.id);
   c.set("host", host);
@@ -72,9 +80,11 @@ export const requireAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next();
 };
 
-async function findActiveHost(id: string) {
+async function findActiveHost(id: string, tokenIssuedAt: number) {
   const host = await db.query.hosts.findFirst({ where: eq(schema.hosts.id, id) });
-  return host && !host.disabledAt ? host : null;
+  if (!host || host.disabledAt) return null;
+  if (host.sessionsValidAfter && tokenIssuedAt < host.sessionsValidAfter.getTime() / 1000) return null;
+  return host;
 }
 
 /** Guest routes: `X-Guest-Token: <opaque token>` issued by POST /api/e/:slug/join. */
@@ -120,8 +130,8 @@ export async function resolveViewer(
   creds: { bearer?: string | null; guestToken?: string | null; displayKey?: string | null },
 ): Promise<Viewer | null> {
   if (creds.bearer) {
-    const hostId = await verifyHostToken(creds.bearer);
-    const host = hostId ? await findActiveHost(hostId) : null;
+    const claims = await verifyHostToken(creds.bearer);
+    const host = claims ? await findActiveHost(claims.hostId, claims.issuedAt) : null;
     if (host && (host.role === "admin" || (host.id === event.hostId && !event.suspendedAt))) {
       return { role: "host", hostId: host.id };
     }

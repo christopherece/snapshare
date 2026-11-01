@@ -139,6 +139,8 @@ export const api = {
     }),
   authConfig: () => json<AuthConfig>("/auth/config"),
   me: () => json<Me>("/auth/me"),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    json<{ token: string }>("/auth/password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) }),
   inviteInfo: (token: string) => json<InviteInfo>(`/auth/invite/${encodeURIComponent(token)}`),
 
   admin: {
@@ -147,6 +149,8 @@ export const api = {
       json<HostEvent>(`/admin/events/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
     deleteEvent: (id: string) => json<{ deleted: boolean }>(`/admin/events/${id}`, { method: "DELETE" }),
     hosts: () => json<HostAccount[]>("/admin/hosts"),
+    resetPassword: (id: string, password: string) =>
+      json<{ reset: boolean; email: string }>(`/admin/hosts/${id}/password`, { method: "POST", body: JSON.stringify({ password }) }),
     updateHost: (id: string, patch: { disabled?: boolean; role?: "admin" | "host" }) =>
       json<{ id: string; role: string; disabled: boolean }>(`/admin/hosts/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
     invites: () => json<Invite[]>("/admin/invites"),

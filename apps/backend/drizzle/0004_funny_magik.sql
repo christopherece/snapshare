@@ -1,0 +1,1 @@
+ALTER TABLE "hosts" ADD COLUMN "sessions_valid_after" timestamp with time zone;
