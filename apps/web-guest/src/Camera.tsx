@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { enterFullscreen } from "./fullscreen";
-import { UnsupportedImageError, captureVideoFrame, cropCenter, looksLikeHeic, photoSize, rotatePhoto } from "./image";
+import { UnsupportedImageError, captureVideoFrame, cropCenter, looksLikeHeic, photoSize, quickFrame, rotatePhoto } from "./image";
 import { correctionNow, trackOrientation } from "./orientation";
 import { dismissInstallCard, installCardDismissed, promptInstall, storeUrlForThisPhone, useInstallMode } from "./install";
 import { enqueuePhoto, retryBlocked, useQueue } from "./queue";
@@ -318,19 +318,32 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
     return () => clearTimeout(t);
   }, [notice]);
 
+  /** Instant feedback: flash and send a viewfinder snapshot flying to the gallery while the real photo is captured. */
+  const playShutterAnimation = (): boolean => {
+    const video = videoRef.current;
+    const preview = video && quickFrame(video, facing === "user", zoomRange.hardware ? 1 : zoomRef.current);
+    setFlashFx((n) => n + 1);
+    if (preview) setFlying(preview);
+    return !!preview;
+  };
+
   const shoot = async () => {
     if (busy || camState !== "live" || !videoRef.current) return;
     setBusy(true);
     navigator.vibrate?.(20);
     const track = streamRef.current?.getVideoTracks()[0];
+    const screenFlashShot = facing === "user" && flashOn;
+    // The front-camera screen flash has to light the face first; everything else animates immediately.
+    let animated = !screenFlashShot && playShutterAnimation();
+    let blob: Blob;
     try {
-      let blob: Blob;
-      if (facing === "user" && flashOn) {
+      if (screenFlashShot) {
         // Front camera: light the face with a white screen.
         setScreenFlash(true);
         await new Promise((r) => setTimeout(r, 220));
         blob = await captureVideoFrame(videoRef.current, true);
         setScreenFlash(false);
+        animated = playShutterAnimation();
       } else if (imageCaptureRef.current && facing === "environment") {
         if (flashOn && flashSupport === "torch") await track?.applyConstraints({ advanced: [{ torch: true } as never] });
         blob = await imageCaptureRef.current
@@ -345,18 +358,27 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
         blob = await captureVideoFrame(videoRef.current, facing === "user");
         if (flashOn && flashSupport === "torch") await track?.applyConstraints({ advanced: [{ torch: false } as never] });
       }
-      setFlashFx((n) => n + 1);
-      // Hardware zoom is already in the photo; digital zoom crops it to what the viewfinder showed.
-      if (!zoomRange.hardware && zoomRef.current > 1) blob = await cropCenter(blob, zoomRef.current);
-      // Phone held sideways but the frame came out portrait (rotation lock / full-res capture): turn it.
-      const size = await photoSize(blob);
-      blob = await rotatePhoto(blob, correctionNow(size.width, size.height));
-      await handlePhoto(blob);
     } catch {
       setScreenFlash(false);
       navigator.vibrate?.([40, 60, 40]);
-    } finally {
       setBusy(false);
+      return;
+    }
+    // The camera is free again: the guest can take the next shot while this one is processed.
+    setBusy(false);
+    if (!animated) setFlying(URL.createObjectURL(blob)); // no viewfinder frame was available — animate the photo itself
+
+    const zoom = zoomRef.current;
+    const rotation = (size: { width: number; height: number }) => correctionNow(size.width, size.height);
+    try {
+      // Hardware zoom is already in the photo; digital zoom crops it to what the viewfinder showed.
+      if (!zoomRange.hardware && zoom > 1) blob = await cropCenter(blob, zoom);
+      // Phone held sideways but the frame came out portrait (rotation lock / full-res capture): turn it.
+      blob = await rotatePhoto(blob, rotation(await photoSize(blob)));
+      await enqueuePhoto(blob, event.id, guestToken);
+    } catch (err) {
+      navigator.vibrate?.([40, 60, 40]);
+      setNotice(err instanceof UnsupportedImageError ? "That photo's format isn't supported — try another" : "Couldn't save that photo — try again");
     }
   };
 
@@ -382,17 +404,47 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
       const dx = target.left + target.width / 2 - (start.left + start.width / 2);
       const dy = target.top + target.height / 2 - (start.top + start.height / 2);
       const s = target.width / start.width;
+      const url = flying;
+      const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      // Freeze → settle into a "printed" card → arc into the gallery button.
       const anim = img.animate(
-        [
-          { transform: "translate(0,0) scale(1)", borderRadius: "20px", opacity: 1 },
-          { transform: "translate(0,0) scale(0.84)", borderRadius: "20px", opacity: 1, offset: 0.18 },
-          { transform: `translate(${dx}px, ${dy}px) scale(${s})`, borderRadius: `${12 / s}px`, opacity: 0.9 },
-        ],
-        { duration: 560, easing: "cubic-bezier(.2,.8,.2,1)" },
+        reduced
+          ? [{ opacity: 1 }, { opacity: 0 }]
+          : [
+              { transform: "translate(0,0) scale(1) rotate(0deg)", borderRadius: "0px", boxShadow: "0 0 0 rgb(0 0 0 / 0)", offset: 0 },
+              {
+                transform: "translate(0,0) scale(0.86) rotate(-1.5deg)",
+                borderRadius: "28px",
+                boxShadow: "0 30px 70px -20px rgb(0 0 0 / 0.65)",
+                offset: 0.22,
+                easing: "ease-in-out",
+              },
+              {
+                transform: "translate(0,-1%) scale(0.84) rotate(-1.5deg)",
+                borderRadius: "28px",
+                boxShadow: "0 30px 70px -20px rgb(0 0 0 / 0.65)",
+                offset: 0.42,
+                easing: "cubic-bezier(.55,0,.35,1)",
+              },
+              {
+                transform: `translate(${dx}px, ${dy}px) scale(${s}) rotate(0deg)`,
+                borderRadius: `${14 / s}px`,
+                boxShadow: "0 0 0 rgb(0 0 0 / 0)",
+                offset: 1,
+              },
+            ],
+        { duration: reduced ? 200 : 820, fill: "forwards" },
       );
       anim.onfinish = () => {
-        onCaptured(flying);
-        setFlying(null);
+        onCaptured(url);
+        // Only clear if a newer shot hasn't already started its own flight.
+        setFlying((cur) => (cur === url ? null : cur));
+        if (!reduced) {
+          galleryBtnRef.current?.animate(
+            [{ transform: "scale(1)" }, { transform: "scale(1.18)" }, { transform: "scale(0.96)" }, { transform: "scale(1)" }],
+            { duration: 420, easing: "cubic-bezier(.3,1.4,.5,1)" },
+          );
+        }
       };
     },
     [flying, onCaptured],
@@ -609,7 +661,7 @@ export function Camera({ session, lastThumb, onCaptured, onOpenFeed }: Props) {
         )}
       </footer>
 
-      {flying && <img ref={flyRef} src={flying} className="fly" alt="" />}
+      {flying && <img key={flying.slice(-32)} ref={flyRef} src={flying} className="fly" alt="" />}
 
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={onFiles} />
       <input ref={uploadInputRef} type="file" accept="image/*" multiple hidden onChange={onFiles} />

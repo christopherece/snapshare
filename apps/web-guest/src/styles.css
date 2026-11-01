@@ -286,7 +286,7 @@ input:focus { border-color: color-mix(in srgb, var(--accent) 70%, transparent); 
 .fallback .btn.primary { background: #fff; color: #000; }
 .fallback .fineprint { color: rgba(255,255,255,0.5); }
 
-.fly { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 30; pointer-events: none; transform-origin: center; }
+.fly { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 30; pointer-events: none; transform-origin: center; will-change: transform; background: #000; }
 
 /* Phone held sideways: browsers can't lock portrait, so do what the system camera does in landscape —
    shutter column on the right, flash/grid on the left, viewfinder clear in the middle. */

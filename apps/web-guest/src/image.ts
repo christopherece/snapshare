@@ -93,6 +93,32 @@ export async function photoSize(blob: Blob) {
   return size;
 }
 
+/**
+ * A small, instant snapshot of what the viewfinder shows (same mirroring and digital zoom), for the
+ * shutter animation and gallery thumbnail. Synchronous and cheap, so feedback appears the moment the
+ * shutter is tapped while the full-resolution photo is still being captured.
+ */
+export function quickFrame(video: HTMLVideoElement, mirror: boolean, zoom = 1, maxEdge = 720): string | null {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  if (!vw || !vh) return null;
+  const z = Math.max(1, zoom);
+  const sw = vw / z;
+  const sh = vh / z;
+  const scale = Math.min(1, maxEdge / Math.max(sw, sh));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(sw * scale);
+  canvas.height = Math.round(sh * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  if (mirror) {
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.75);
+}
+
 /** Grab the current frame of a <video> as a full-resolution JPEG. */
 export async function captureVideoFrame(video: HTMLVideoElement, mirror: boolean): Promise<Blob> {
   const canvas = document.createElement("canvas");
