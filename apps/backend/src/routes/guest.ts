@@ -17,7 +17,8 @@ import { realtime } from "../realtime/hub.ts";
 
 const { photos, guests, photoLikes, photoComments, photoReports } = schema;
 
-const joinLimiter = new TokenBucket(20, 20 / 60);
+// Joins are keyed by IP, and a whole venue's Wi-Fi shares one: allow a room scanning the QR at once.
+const joinLimiter = new TokenBucket(200, 120 / 60);
 const uploadLimiter = new TokenBucket(env.UPLOADS_PER_MINUTE, env.UPLOADS_PER_MINUTE / 60);
 const socialLimiter = new TokenBucket(30, 0.5);
 
