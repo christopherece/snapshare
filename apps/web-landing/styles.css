@@ -807,3 +807,76 @@ details p {
     transition: none;
   }
 }
+
+/* ─── Contact dialog (mailto: buttons) ─────────────────────── */
+.contact-dialog {
+  width: min(440px, calc(100vw - 32px));
+  padding: 28px 26px 24px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.25);
+}
+.contact-dialog::backdrop {
+  background: rgba(20, 16, 12, 0.45);
+  backdrop-filter: blur(3px);
+}
+.contact-dialog[open] {
+  animation: contact-in 0.22s var(--ease-out, ease-out);
+}
+@keyframes contact-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+.contact-title {
+  font: 400 32px/1.1 var(--serif);
+  margin: 0 0 8px;
+}
+.contact-close-form {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  margin: 0;
+}
+.contact-close {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+.contact-close:hover {
+  background: var(--bg-alt);
+}
+.contact-email {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 18px 0;
+  padding: 8px 8px 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+  font-size: 15px;
+}
+.contact-email span {
+  overflow-wrap: anywhere;
+}
+.contact-actions {
+  display: grid;
+  gap: 10px;
+  justify-items: stretch;
+  text-align: center;
+}
+.contact-actions .link {
+  margin-top: 4px;
+  font-size: 15px;
+}
