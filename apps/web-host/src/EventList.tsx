@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from "react";
-import { type HostEvent, type Me, api } from "./api";
+import { API_URL, type HostEvent, type Me, api } from "./api";
 import { navigate } from "./router";
 
 const fmtDate = (iso: string | null) =>
@@ -151,6 +151,14 @@ function CreateEvent({ onCancel, onCreated }: { onCancel: () => void; onCreated:
           </span>
         </label>
       </div>
+      <p className="muted small host-terms">
+        You're responsible for the photos shared at your event: keep an eye on what appears on screen and act on guest
+        reports. By creating an event you agree to the{" "}
+        <a href={`${API_URL}/terms`} target="_blank" rel="noopener">
+          Guest &amp; host terms
+        </a>
+        .
+      </p>
       {error && <p className="error">{error}</p>}
       <div className="row end">
         <button type="button" className="btn ghost" onClick={onCancel}>

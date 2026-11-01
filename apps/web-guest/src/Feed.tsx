@@ -1,4 +1,4 @@
-import type { CommentDTO, PhotoDTO, WsServerMessage } from "@snapshare/shared";
+import type { CommentDTO, PhotoDTO, ReportReason, WsServerMessage } from "@snapshare/shared";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, WS_URL, api } from "./api";
 import { previewUrl, useQueue } from "./queue";
@@ -230,6 +230,8 @@ function Viewer({
 }) {
   const photo = photos[index]!;
   const [showComments, setShowComments] = useState(false);
+  const [showReport, setShowReport] = useState(false);
+  const [reported, setReported] = useState<Set<string>>(() => new Set());
   const [heart, setHeart] = useState(0);
   const lastTap = useRef(0);
   const touchX = useRef<number | null>(null);
@@ -303,12 +305,91 @@ function Viewer({
         <button className="comment-btn" onClick={() => setShowComments(true)}>
           💬 Comments
         </button>
+        <button
+          className="report-btn"
+          onClick={() => setShowReport(true)}
+          disabled={reported.has(photo.id)}
+          aria-label={reported.has(photo.id) ? "Reported" : "Report this photo"}
+        >
+          ⚑ {reported.has(photo.id) ? "Reported" : "Report"}
+        </button>
         <span className="muted small counter">
           {index + 1} / {photos.length}
         </span>
       </footer>
 
       {showComments && <Comments photoId={photo.id} token={token} onClose={() => setShowComments(false)} />}
+      {showReport && (
+        <ReportSheet
+          photoId={photo.id}
+          token={token}
+          onClose={() => setShowReport(false)}
+          onReported={() => setReported((prev) => new Set(prev).add(photo.id))}
+        />
+      )}
+    </div>
+  );
+}
+
+const REPORT_REASONS: { value: ReportReason; label: string; hint: string }[] = [
+  { value: "me", label: "I'm in this photo", hint: "and I'd like it removed" },
+  { value: "inappropriate", label: "It's inappropriate", hint: "offensive, explicit or unkind" },
+  { value: "other", label: "Something else", hint: "the host will take a look" },
+];
+
+/** Lets a guest flag a photo for the host. Only the host sees reports; several reports hide the photo. */
+function ReportSheet({
+  photoId,
+  token,
+  onClose,
+  onReported,
+}: {
+  photoId: string;
+  token: string;
+  onClose: () => void;
+  onReported: () => void;
+}) {
+  const [state, setState] = useState<"choose" | "sending" | "done" | "error">("choose");
+
+  const send = async (reason: ReportReason) => {
+    setState("sending");
+    try {
+      await api.reportPhoto(token, photoId, reason);
+      onReported();
+      setState("done");
+    } catch {
+      setState("error");
+    }
+  };
+
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <section className="sheet report-sheet" role="dialog" aria-label="Report this photo" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-handle" />
+        {state === "done" ? (
+          <div className="report-done">
+            <p className="report-title">Thanks for letting us know</p>
+            <p className="muted">The host has been notified and will review this photo.</p>
+            <button className="btn primary" onClick={onClose}>
+              Done
+            </button>
+          </div>
+        ) : (
+          <>
+            <p className="report-title">Report this photo</p>
+            <p className="muted small">Only the host sees reports. Your name isn't shared.</p>
+            <div className="report-options">
+              {REPORT_REASONS.map((r) => (
+                <button key={r.value} className="report-option" disabled={state === "sending"} onClick={() => send(r.value)}>
+                  <strong>{r.label}</strong>
+                  <span>{r.hint}</span>
+                </button>
+              ))}
+            </div>
+            {state === "error" && <p className="error">Couldn't send the report. Check your signal and try again.</p>}
+          </>
+        )}
+      </section>
     </div>
   );
 }

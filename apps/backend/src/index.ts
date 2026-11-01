@@ -15,6 +15,7 @@ import { downloadRoutes } from "./routes/downloads.ts";
 import { guestRoutes } from "./routes/guest.ts";
 import { hostRoutes } from "./routes/host.ts";
 import { joinPage } from "./routes/join-page.ts";
+import { legalRoutes } from "./routes/legal.ts";
 import { guestManifest } from "./lib/guest-manifest.ts";
 
 const app = new Hono()
@@ -28,6 +29,7 @@ const app = new Hono()
     return c.json({ appStoreUrl: env.APP_STORE_URL ?? null, playStoreUrl: env.PLAY_STORE_URL ?? null });
   })
   .route("/open", joinPage)
+  .route("/", legalRoutes)
   .route("/api/auth", authRoutes)
   .route("/api/host", hostRoutes)
   .route("/api/admin", adminRoutes)
@@ -69,7 +71,7 @@ if (env.STATIC_DIR) {
   // Only the marketing page belongs in search results; events, dashboards and displays are private.
   app.get("/robots.txt", (c) =>
     c.text(
-      ["User-agent: *", "Allow: /$", "Disallow: /join/", "Disallow: /host/", "Disallow: /slideshow/", "Disallow: /open/", "Disallow: /api/", ""].join(
+      ["User-agent: *", "Allow: /$", "Allow: /terms", "Allow: /privacy", "Disallow: /join/", "Disallow: /host/", "Disallow: /slideshow/", "Disallow: /open/", "Disallow: /api/", ""].join(
         "\n",
       ),
     ),
@@ -87,6 +89,12 @@ if (env.STATIC_DIR) {
       serveStatic({ root: dir, rewriteRequestPath: () => `/${name}/index.html`, onFound: cacheHeaders }),
     );
   }
+}
+
+// Dev: serve the brand files straight from the package (production copies them into STATIC_DIR/brand),
+// so the legal pages and 404 page look the same locally.
+if (!env.STATIC_DIR) {
+  app.get("/brand/*", serveStatic({ root: `${import.meta.dir}/../../../packages/brand/public`, rewriteRequestPath: (p) => p.replace(/^\/brand/, "") }));
 }
 
 app.onError((err, c) => {

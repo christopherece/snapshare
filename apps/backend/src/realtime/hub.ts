@@ -62,6 +62,11 @@ export const realtime = {
     publish(topics.host(eventId), msg);
   },
 
+  /** Host dashboard only — guests never learn who reported what. */
+  photoReported(eventId: string, msg: Extract<WsServerMessage, { type: "photo.reported" }>) {
+    publish(topics.host(eventId), msg);
+  },
+
   broadcastPublic(eventId: string, msg: WsServerMessage) {
     publish(topics.public(eventId), msg);
     publish(topics.host(eventId), msg);

@@ -370,3 +370,28 @@ input:focus { border-color: color-mix(in srgb, var(--accent) 70%, transparent); 
 @media (prefers-reduced-motion: reduce) {
   .tile, .big-heart, .flash-fx { animation: none; }
 }
+
+/* Join: what guests agree to, right above the button that means "I agree". */
+.join-notice {
+  display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  font-size: 13.5px; line-height: 1.45; color: var(--text);
+}
+.join-notice p { margin: 0; }
+.join-notice p + p { color: var(--muted); }
+.fineprint a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Report a photo (guest viewer) */
+.report-btn { background: none; border: none; color: rgba(255, 255, 255, 0.75); font-size: 15px; padding: 6px 0; }
+.report-btn:disabled { color: rgba(255, 255, 255, 0.45); }
+.report-sheet { gap: 6px; }
+.report-title { margin: 4px 0 0; font: 400 26px/1.15 var(--font-serif); }
+.report-options { display: grid; gap: 8px; margin: 12px 0 4px; }
+.report-option {
+  display: grid; gap: 2px; text-align: left; padding: 14px 16px; border-radius: var(--radius-md);
+  border: 1px solid var(--surface-2); background: var(--surface-2); color: var(--text);
+}
+.report-option span { font-size: 13px; color: var(--muted); }
+.report-option:disabled { opacity: 0.5; }
+.report-done { display: grid; gap: 10px; padding: 6px 0 4px; }

@@ -1,5 +1,5 @@
 import type { CommentDTO, JoinEventResponse, PageResponse, PhotoDTO, UploadUrlResponse } from "@snapshare/shared";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, gt, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import QRCode from "qrcode";
@@ -11,11 +11,11 @@ import { type AppEnv, assertEventLive, hashToken, randomToken, requireGuest, res
 import { cursor, toEventPublicDTO, toPhotoDTO } from "../lib/dto.ts";
 import { body, notFound, parse } from "../lib/http.ts";
 import { TokenBucket, clientIp, rateLimit } from "../lib/rate-limit.ts";
-import { UPLOAD_URL_TTL_SECONDS, keys, presignUpload, s3 } from "../lib/storage.ts";
+import { UPLOAD_URL_TTL_SECONDS, keys, presignUpload, s3, setRenditionVisibility } from "../lib/storage.ts";
 import { mediaQueue } from "../media/queue.ts";
 import { realtime } from "../realtime/hub.ts";
 
-const { photos, guests, photoLikes, photoComments } = schema;
+const { photos, guests, photoLikes, photoComments, photoReports } = schema;
 
 const joinLimiter = new TokenBucket(20, 20 / 60);
 const uploadLimiter = new TokenBucket(env.UPLOADS_PER_MINUTE, env.UPLOADS_PER_MINUTE / 60);
@@ -202,7 +202,7 @@ export const guestRoutes = new Hono<AppEnv>()
       z.object({
         cursor: z.string().optional(),
         limit: z.coerce.number().int().min(1).max(100).default(30),
-        filter: z.enum(["all", "pending", "hidden", "favorites"]).default("all"),
+        filter: z.enum(["all", "pending", "hidden", "favorites", "reported"]).default("all"),
       }),
       c.req.query(),
     );
@@ -211,6 +211,7 @@ export const guestRoutes = new Hono<AppEnv>()
     if (viewer.role !== "host") conds.push(eq(photos.moderation, "approved"));
     else if (q.filter === "pending" || q.filter === "hidden") conds.push(eq(photos.moderation, q.filter));
     if (q.filter === "favorites") conds.push(eq(photos.isFavorite, true));
+    if (q.filter === "reported" && viewer.role === "host") conds.push(gt(photos.reportCount, 0));
 
     const after = cursor.decode(q.cursor);
     if (after) conds.push(sql`(${photos.createdAt}, ${photos.id}) < (${after.createdAt.toISOString()}::timestamptz, ${after.id}::uuid)`);
@@ -233,7 +234,11 @@ export const guestRoutes = new Hono<AppEnv>()
     const page = rows.slice(0, q.limit);
     const last = page.at(-1);
     return c.json({
-      items: page.map((r) => toPhotoDTO(r.photo, r.guestName, guestId ? r.likedByMe : undefined)),
+      items: page.map((r) => ({
+        ...toPhotoDTO(r.photo, r.guestName, guestId ? r.likedByMe : undefined),
+        // Only the host sees reports.
+        ...(viewer.role === "host" && { reportCount: r.photo.reportCount }),
+      })),
       nextCursor: rows.length > q.limit && last ? cursor.encode(last.photo.createdAt, last.photo.id) : null,
     } satisfies PageResponse<PhotoDTO>);
   })
@@ -287,6 +292,58 @@ export const guestRoutes = new Hono<AppEnv>()
       .orderBy(photoComments.createdAt)
       .limit(200);
     return c.json(rows.map((r) => toCommentDTO(r.comment, r.guestName)));
+  })
+
+  /**
+   * A guest flags a photo for the host. One report per guest per photo; enough reports from different
+   * guests hide it until the host has reviewed it.
+   */
+  .post("/photos/:id/report", requireGuest, rateLimit(socialLimiter, byDevice), async (c) => {
+    const guest = c.get("guest");
+    const photo = await guestVisiblePhoto(guest, c.req.param("id"));
+    const input = await body(c, z.object({ reason: z.enum(["inappropriate", "me", "other"]) }));
+
+    const result = await db.transaction(async (tx) => {
+      const inserted = await tx
+        .insert(photoReports)
+        .values({ photoId: photo.id, guestId: guest.id, reason: input.reason })
+        .onConflictDoNothing()
+        .returning();
+      if (!inserted.length) return null; // already reported by this guest
+      const autoHide = env.REPORTS_TO_AUTO_HIDE > 0;
+      const [p] = await tx
+        .update(photos)
+        .set({
+          reportCount: sql`${photos.reportCount} + 1`,
+          ...(autoHide && {
+            moderation: sql`case when ${photos.reportCount} + 1 >= ${env.REPORTS_TO_AUTO_HIDE} and ${photos.moderation} = 'approved' then 'hidden'::moderation_status else ${photos.moderation} end`,
+          }),
+        })
+        .where(eq(photos.id, photo.id))
+        .returning();
+      return p!;
+    });
+
+    if (result) {
+      const autoHidden = photo.moderation === "approved" && result.moderation === "hidden";
+      if (autoHidden) {
+        // Same as a host hiding it: take the renditions off the public CDN, then tell everyone.
+        if (result.status === "ready") {
+          await setRenditionVisibility([result.thumbKey, result.displayKey], false).catch((err) =>
+            console.error("[report] could not hide renditions", photo.id, err),
+          );
+        }
+        realtime.photoModerated(toPhotoDTO(result, null), "approved");
+      }
+      realtime.photoReported(photo.eventId, {
+        type: "photo.reported",
+        photoId: photo.id,
+        reportCount: result.reportCount,
+        reason: input.reason,
+        autoHidden,
+      });
+    }
+    return c.json({ reported: true });
   })
 
   .post("/photos/:id/comments", requireGuest, rateLimit(socialLimiter, byDevice), async (c) => {

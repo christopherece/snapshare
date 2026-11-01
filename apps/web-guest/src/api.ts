@@ -4,6 +4,7 @@ import type {
   JoinEventResponse,
   PageResponse,
   PhotoDTO,
+  ReportReason,
   UploadUrlResponse,
 } from "@snapshare/shared";
 
@@ -66,4 +67,7 @@ export const api = {
 
   addComment: (token: string, photoId: string, body: string) =>
     request<CommentDTO>(`/photos/${photoId}/comments`, { method: "POST", body: JSON.stringify({ body }), token }),
+
+  reportPhoto: (token: string, photoId: string, reason: ReportReason) =>
+    request<{ reported: boolean }>(`/photos/${photoId}/report`, { method: "POST", body: JSON.stringify({ reason }), token }),
 };

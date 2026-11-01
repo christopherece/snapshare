@@ -172,6 +172,16 @@ export function Join({
           </p>
         )}
 
+        {event && (
+          <div className="join-notice">
+            <p>
+              <strong>Before you start.</strong> Your photos are shared with the host and other guests, and may appear{" "}
+              <strong>live on the big screen</strong>.
+            </p>
+            <p>Only take photos people are happy to share. Nothing offensive, and respect anyone who'd rather not be photographed.</p>
+          </div>
+        )}
+
         {(event || !initialSlug) && (
           <button className="btn primary big" disabled={!event || busy}>
             {busy ? (
@@ -186,7 +196,15 @@ export function Join({
           </button>
         )}
         <p className="fineprint">
-          No app or account needed. Photos you take are shared with the hosts and other guests.
+          No app or account needed. By continuing you agree to the{" "}
+          <a href={`${API_URL}/terms`} target="_blank" rel="noopener">
+            Guest terms
+          </a>{" "}
+          and{" "}
+          <a href={`${API_URL}/privacy`} target="_blank" rel="noopener">
+            Privacy notice
+          </a>
+          .
         </p>
         {event && (
           <a className="fineprint link" href={`${API_URL}/open/${slug}`}>

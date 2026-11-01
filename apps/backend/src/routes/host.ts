@@ -125,11 +125,18 @@ export const hostRoutes = new Hono<AppEnv>()
     if (input.moderation && photo.status === "ready") {
       await setRenditionVisibility([photo.thumbKey, photo.displayKey], input.moderation === "approved");
     }
-    const [updated] = await db.update(schema.photos).set(input).where(eq(schema.photos.id, photo.id)).returning();
+    // Approving after review settles any guest reports on the photo.
+    const clearReports = input.moderation === "approved" && photo.reportCount > 0;
+    if (clearReports) await db.delete(schema.photoReports).where(eq(schema.photoReports.photoId, photo.id));
+    const [updated] = await db
+      .update(schema.photos)
+      .set({ ...input, ...(clearReports && { reportCount: 0 }) })
+      .where(eq(schema.photos.id, photo.id))
+      .returning();
     if (updated!.status === "ready") {
       realtime.photoModerated(toPhotoDTO(updated!, photo.guestName), photo.moderation);
     }
-    return c.json(toPhotoDTO(updated!, photo.guestName));
+    return c.json({ ...toPhotoDTO(updated!, photo.guestName), reportCount: updated!.reportCount });
   })
 
   .delete("/photos/:id", async (c) => {

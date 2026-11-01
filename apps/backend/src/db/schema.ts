@@ -146,6 +146,8 @@ export const photos = pgTable(
     exif: jsonb("exif").$type<Record<string, unknown>>(),
 
     likeCount: integer("like_count").notNull().default(0),
+    /** Open guest reports — cleared when the host approves the photo after review. */
+    reportCount: integer("report_count").notNull().default(0),
     processingAttempts: integer("processing_attempts").notNull().default(0),
     processingError: text("processing_error"),
     ...timestamps,
@@ -189,6 +191,25 @@ export const photoComments = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("photo_comments_photo_idx").on(t.photoId, t.createdAt)],
+);
+
+export const reportReason = pgEnum("report_reason", ["inappropriate", "me", "other"]);
+
+/** A guest flagging a photo for the host to review (one report per guest per photo). */
+export const photoReports = pgTable(
+  "photo_reports",
+  {
+    photoId: uuid("photo_id")
+      .notNull()
+      .references(() => photos.id, { onDelete: "cascade" }),
+    guestId: uuid("guest_id")
+      .notNull()
+      .references(() => guests.id, { onDelete: "cascade" }),
+    /** inappropriate | me ("I'm in this photo and want it removed") | other */
+    reason: reportReason("reason").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.photoId, t.guestId] })],
 );
 
 export type Host = typeof hosts.$inferSelect;

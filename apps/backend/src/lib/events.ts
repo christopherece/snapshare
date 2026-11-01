@@ -44,6 +44,7 @@ export async function photoCounts(eventIds: string[]) {
           pendingCount: sql<number>`(count(*) filter (where ${schema.photos.moderation} = 'pending'))::int`,
           favoriteCount: sql<number>`(count(*) filter (where ${schema.photos.isFavorite}))::int`,
           hiddenCount: sql<number>`(count(*) filter (where ${schema.photos.moderation} = 'hidden'))::int`,
+          reportedCount: sql<number>`(count(*) filter (where ${schema.photos.reportCount} > 0))::int`,
         })
         .from(schema.photos)
         .where(and(eq(schema.photos.status, "ready"), inArray(schema.photos.eventId, eventIds)))
@@ -57,6 +58,7 @@ export async function photoCounts(eventIds: string[]) {
       pendingCount: r?.pendingCount ?? 0,
       favoriteCount: r?.favoriteCount ?? 0,
       hiddenCount: r?.hiddenCount ?? 0,
+      reportedCount: r?.reportedCount ?? 0,
     };
   };
 }

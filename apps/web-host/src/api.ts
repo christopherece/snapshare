@@ -25,6 +25,7 @@ export interface HostEvent {
   pendingCount?: number;
   favoriteCount?: number;
   hiddenCount?: number;
+  reportedCount?: number;
 }
 
 export interface EventInput {
@@ -37,7 +38,7 @@ export interface EventInput {
   uploadsOpen?: boolean;
 }
 
-export type PhotoFilter = "all" | "pending" | "favorites" | "hidden";
+export type PhotoFilter = "all" | "pending" | "favorites" | "hidden" | "reported";
 
 export interface Me {
   id: string;

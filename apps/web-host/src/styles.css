@@ -392,3 +392,15 @@ input:focus-visible { outline: none; }
   .topbar { height: 58px; }
   .brand .ss-logo-word { display: none; }
 }
+
+/* Guest reports */
+.tile .status.reported { left: auto; right: 46px; background: var(--danger); color: #fff; }
+.tile .status.pending + .status.reported, .tile .status.hidden + .status.reported { right: 46px; }
+.report-alert {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 14px; padding: 10px 12px 10px 16px; border-radius: 14px; font-size: 14px; font-weight: 500;
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  animation: appear 0.3s ease;
+}
+.host-terms { margin: 16px 0 0; } .host-terms a { color: inherit; text-underline-offset: 3px; }

@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { type HostEvent, type Me, type PhotoFilter, api, openEventSocket } from "./api";
 
 const matches = (p: PhotoDTO, f: PhotoFilter) =>
-  f === "all" || (f === "favorites" ? p.isFavorite : p.moderation === f);
+  f === "all" ||
+  (f === "favorites" ? p.isFavorite : f === "reported" ? (p.reportCount ?? 0) > 0 : p.moderation === f);
 
 export function EventPage({ eventId, token, me }: { eventId: string; token: string; me: Me | null }) {
   const [event, setEvent] = useState<HostEvent | null>(null);
@@ -243,7 +244,10 @@ function Toggle(props: { label: string; hint: string; checked: boolean; onChange
 // ─── Gallery with live updates + moderation ───────────────────────────────────
 
 function Gallery({ event, token, onCountsChanged }: { event: HostEvent; token: string; onCountsChanged: () => void }) {
-  const [filter, setFilter] = useState<PhotoFilter>(event.pendingCount ? "pending" : "all");
+  const [filter, setFilter] = useState<PhotoFilter>(
+    event.reportedCount ? "reported" : event.pendingCount ? "pending" : "all",
+  );
+  const [reportAlert, setReportAlert] = useState<string | null>(null);
   const [photos, setPhotos] = useState<PhotoDTO[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -296,9 +300,16 @@ function Gallery({ event, token, onCountsChanged }: { event: HostEvent; token: s
           if (matches(msg.photo, f)) setPhotos((prev) => (prev.some((p) => p.id === msg.photo.id) ? prev : [msg.photo, ...prev]));
           bumpCounts();
         } else if (msg.type === "photo.updated") {
+          // Broadcast updates don't carry reports (guests share that channel), so keep the count we have.
           setPhotos((prev) =>
-            matches(msg.photo, f) ? prev.map((p) => (p.id === msg.photo.id ? msg.photo : p)) : prev.filter((p) => p.id !== msg.photo.id),
+            prev
+              .map((p) => (p.id === msg.photo.id ? { ...msg.photo, reportCount: msg.photo.reportCount ?? p.reportCount } : p))
+              .filter((p) => p.id !== msg.photo.id || matches(p, f)),
           );
+          bumpCounts();
+        } else if (msg.type === "photo.reported") {
+          setPhotos((prev) => prev.map((p) => (p.id === msg.photoId ? { ...p, reportCount: msg.reportCount } : p)));
+          setReportAlert(msg.autoHidden ? "A photo was hidden after several guests reported it." : "A guest reported a photo.");
           bumpCounts();
         } else if (msg.type === "photo.removed") {
           setPhotos((prev) => prev.filter((p) => p.id !== msg.photoId));
@@ -344,10 +355,33 @@ function Gallery({ event, token, onCountsChanged }: { event: HostEvent; token: s
     { key: "pending", label: "To review", count: event.pendingCount },
     { key: "favorites", label: "Favorites", count: event.favoriteCount },
     { key: "hidden", label: "Hidden", count: event.hiddenCount },
+    ...(event.reportedCount || filter === "reported"
+      ? [{ key: "reported" as const, label: "⚑ Reported", count: event.reportedCount }]
+      : []),
   ];
 
   return (
     <section className="gallery">
+      {reportAlert && (
+        <div className="report-alert" role="status">
+          <span>⚑ {reportAlert}</span>
+          <span className="row">
+            <button
+              className="btn small"
+              onClick={() => {
+                setFilter("reported");
+                setReportAlert(null);
+              }}
+            >
+              Review
+            </button>
+            <button className="btn small ghost" onClick={() => setReportAlert(null)} aria-label="Dismiss">
+              ✕
+            </button>
+          </span>
+        </div>
+      )}
+
       <div className="chips">
         {chips.map((c) => (
           <button key={c.key} className={`chip ${filter === c.key ? "active" : ""}`} onClick={() => setFilter(c.key)}>
@@ -374,14 +408,19 @@ function Gallery({ event, token, onCountsChanged }: { event: HostEvent; token: s
           <figure key={p.id} className={`tile ${p.moderation}`}>
             <img src={p.thumbUrl} alt="" loading="lazy" onClick={() => setOpen(i)} />
             {p.moderation !== "approved" && <span className={`status ${p.moderation}`}>{p.moderation === "pending" ? "To review" : "Hidden"}</span>}
+            {!!p.reportCount && (
+              <span className="status reported" title="Reported by guests">
+                ⚑ {p.reportCount}
+              </span>
+            )}
             <button className={`fav ${p.isFavorite ? "on" : ""}`} title="Favorite" onClick={() => act(p, "favorite")}>
               {p.isFavorite ? "★" : "☆"}
             </button>
             <figcaption>
               <span className="who">{p.guestName ?? "Guest"}</span>
               <span className="tile-actions">
-                {p.moderation !== "approved" && (
-                  <button title="Approve" onClick={() => act(p, "approve")}>
+                {(p.moderation !== "approved" || !!p.reportCount) && (
+                  <button title={p.reportCount ? "Keep photo (clear reports)" : "Approve"} onClick={() => act(p, "approve")}>
                     ✓
                   </button>
                 )}
@@ -455,14 +494,15 @@ function Lightbox(props: {
         <span>
           {photo.guestName ?? "Guest"} · {new Date(photo.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
           {photo.likeCount ? ` · ♥ ${photo.likeCount}` : ""}
+          {photo.reportCount ? ` · ⚑ reported by ${photo.reportCount} guest${photo.reportCount === 1 ? "" : "s"}` : ""}
         </span>
         <span className="row">
           <button className="btn small" onClick={() => onAction("favorite")}>
             {photo.isFavorite ? "★ Favorited" : "☆ Favorite"}
           </button>
-          {photo.moderation !== "approved" && (
+          {(photo.moderation !== "approved" || !!photo.reportCount) && (
             <button className="btn small primary" onClick={() => onAction("approve")}>
-              Approve
+              {photo.reportCount ? "Keep photo" : "Approve"}
             </button>
           )}
           {photo.moderation !== "hidden" && (

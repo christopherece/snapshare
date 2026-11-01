@@ -21,7 +21,11 @@ export interface PhotoDTO {
   isFavorite: boolean;
   likeCount: number;
   likedByMe?: boolean;
+  /** Open guest reports — only sent to the event's host. */
+  reportCount?: number;
 }
+
+export type ReportReason = "inappropriate" | "me" | "other";
 
 export interface EventPublicDTO {
   id: string;
@@ -55,6 +59,8 @@ export type WsServerMessage =
   | { type: "photo.updated"; photo: PhotoDTO }
   | { type: "photo.removed"; photoId: string }
   | { type: "photo.liked"; photoId: string; likeCount: number }
+  /** Host channel only: a guest reported a photo. */
+  | { type: "photo.reported"; photoId: string; reportCount: number; reason: ReportReason; autoHidden: boolean }
   | { type: "comment.added"; photoId: string; comment: CommentDTO };
 
 export type WsRole = "guest" | "host" | "display";
