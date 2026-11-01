@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@snapshare/brand": "workspace:*",
     "@snapshare/shared": "workspace:*",
     "heic-to": "1.6.5",
     "react": "19.2.3",

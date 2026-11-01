@@ -27,6 +27,7 @@ WORKDIR /app
 # bunfig.toml is not copied: its hoisted-linker setting only matters for the Expo app.
 COPY package.json bun.lock ./
 COPY packages/shared/package.json packages/shared/
+COPY packages/brand/package.json packages/brand/
 COPY apps/backend/package.json apps/backend/
 COPY apps/web-host/package.json apps/web-host/
 COPY apps/web-slideshow/package.json apps/web-slideshow/
@@ -35,12 +36,13 @@ COPY apps/web-landing/package.json apps/web-landing/
 # The mobile manifest must exist for the lockfile to resolve, but its deps are filtered out.
 COPY apps/mobile/package.json apps/mobile/
 # Older Bun (baseline mode) can't read Bun 1.4's lockfile, so it resolves within package.json ranges.
-RUN FILTERS="--filter @snapshare/backend --filter @snapshare/web-host --filter @snapshare/web-slideshow --filter @snapshare/web-guest"; \
+RUN FILTERS="--filter @snapshare/backend --filter @snapshare/web-host --filter @snapshare/web-slideshow --filter @snapshare/web-guest --filter @snapshare/web-landing"; \
     if [ "$BUN_BASELINE" = "1" ]; then rm -f bun.lock && bun install $FILTERS; else bun install --frozen-lockfile $FILTERS; fi
 
 # ─── 2. Build the static web apps ───
 FROM deps AS web
 COPY packages/shared packages/shared
+COPY packages/brand packages/brand
 COPY apps/web-host apps/web-host
 COPY apps/web-slideshow apps/web-slideshow
 COPY apps/web-guest apps/web-guest
@@ -49,7 +51,8 @@ RUN cd apps/web-landing && bun build ./index.html --outdir /static/landing --pro
  && cd ../web-host && bun build ./index.html --outdir /static/host --production --public-path /host/ \
  && cd ../web-slideshow && bun build ./index.html --outdir /static/slideshow --production --public-path /slideshow/ \
  && cd ../web-guest && bun build ./index.html --outdir /static/join --production --splitting --public-path /join/ \
- && cp -R public/. /static/join/
+ && cp -R public/. /static/join/ \
+ && cp -R /app/packages/brand/public /static/brand
 
 # ─── 3. Runtime ───
 FROM bun-base AS runtime

@@ -6,5 +6,8 @@
   "scripts": {
     "dev": "bun --watch serve.ts",
     "build": "bun build ./index.html --outdir dist --production --public-path /landing/"
+  },
+  "dependencies": {
+    "@snapshare/brand": "workspace:*"
   }
 }

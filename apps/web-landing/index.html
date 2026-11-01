@@ -11,14 +11,29 @@
     <meta property="og:title" content="SnapShare — every guest's photos, live on the big screen" />
     <meta property="og:description" content="Guests scan a QR code and shoot. No app, no chasing photos after the night." />
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SnapShare" />
+    <meta property="og:locale" content="en_NZ" />
+    <!-- %PUBLIC_URL% is filled in by the server: link previews need an absolute image URL. -->
+    <meta property="og:image" content="%PUBLIC_URL%/brand/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="SnapShare — every guest&#39;s photos, one live album" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="%PUBLIC_URL%/brand/og-image.png" />
     <meta name="theme-color" content="#f7f5f1" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#121110" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="../../packages/brand/public/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="../../packages/brand/public/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="../../packages/brand/public/apple-touch-icon.png" />
+    <style>
+      @import url("/brand/fonts.css");
+    </style>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <header class="nav">
       <div class="wrap nav-inner">
-        <a class="logo" href="#top" aria-label="SnapShare home"><span class="logo-mark" aria-hidden="true"></span>SnapShare</a>
+        <a class="logo" href="#top" aria-label="SnapShare home"><img class="logo-mark" src="../../packages/brand/public/favicon.svg" alt="" width="28" height="28" />SnapShare</a>
         <nav class="nav-links" aria-label="Main">
           <a href="#how">How it works</a>
           <a href="#pricing">Pricing</a>
@@ -286,7 +301,7 @@
 
     <footer class="footer">
       <div class="wrap footer-inner">
-        <span class="logo small"><span class="logo-mark" aria-hidden="true"></span>SnapShare</span>
+        <span class="logo small"><img class="logo-mark" src="../../packages/brand/public/favicon.svg" alt="" width="28" height="28" />SnapShare</span>
         <span class="muted">A Top IT Solutions product · New Zealand</span>
         <a class="link" href="/host/">Host login</a>
       </div>

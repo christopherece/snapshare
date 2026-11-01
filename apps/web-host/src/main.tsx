@@ -5,6 +5,7 @@ import { type Me, api, setUnauthorizedHandler, tokenStore } from "./api";
 import { EventList } from "./EventList";
 import { EventPage } from "./EventPage";
 import { Login } from "./Login";
+import { Logo } from "./Logo";
 import { navigate, useRoute } from "./router";
 
 function App() {
@@ -58,8 +59,8 @@ function App() {
   return (
     <div className="shell">
       <header className="topbar">
-        <a href="#/" className="brand">
-          SnapShare <span>Host</span>
+        <a href="#/" className="brand" aria-label="SnapShare dashboard home">
+          <Logo size={28} label={isAdmin ? "Admin" : "Host"} />
         </a>
         <nav className="row">
           <a href="#/" className={`nav-link ${route.page === "events" || route.page === "event" ? "active" : ""}`}>

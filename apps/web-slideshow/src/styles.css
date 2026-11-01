@@ -1,3 +1,5 @@
+@import "@snapshare/brand/tokens.css";
+
 :root {
   --fg: #fbf8f3;
   --muted: rgba(251, 248, 243, 0.65);
@@ -11,7 +13,7 @@ html, body {
   height: 100%;
   background: #000;
   color: var(--fg);
-  font-family: "Helvetica Neue", system-ui, sans-serif;
+  font-family: var(--font-sans);
   overflow: hidden;
 }
 
@@ -106,7 +108,7 @@ body.idle { cursor: none; }
   z-index: 5; /* above the photo layers, whatever the style */
 }
 .caption { display: flex; flex-direction: column; gap: 0.4vh; }
-.caption .event-name { font-family: Georgia, serif; font-size: 2.4vh; letter-spacing: 0.04em; }
+.caption .event-name { font-family: var(--font-serif); font-size: 2.8vh; letter-spacing: 0.01em; }
 #credit { color: var(--muted); font-size: 1.8vh; min-height: 1.8vh; }
 
 .join { display: flex; align-items: center; gap: 1.2vw; color: var(--muted); font-size: 1.5vh; line-height: 1.35; text-align: left; }
@@ -126,7 +128,7 @@ body.idle { cursor: none; }
 }
 .empty[hidden] { display: none; }
 .empty .kicker { font-size: 1.6vh; letter-spacing: 0.4em; text-transform: uppercase; color: var(--accent); }
-.empty h1 { font-family: Georgia, serif; font-weight: 400; font-size: 6vh; }
+.empty h1 { font-family: var(--font-serif); font-weight: 400; font-size: 7vh; letter-spacing: -0.01em; }
 .qr-large { width: 32vh; }
 .empty .hint { color: var(--muted); font-size: 2vh; max-width: 40ch; }
 
@@ -179,7 +181,7 @@ body.idle { cursor: none; }
   display: grid;
   place-items: center;
   color: #3a3631;
-  font: italic 2.6vh/1 Georgia, "Times New Roman", serif;
+  font: italic 2.8vh/1 var(--font-serif);
 }
 .polaroid.gone { opacity: 0; }
 @keyframes drop {
@@ -270,7 +272,7 @@ body.idle:not(.settings-open) .settings-btn { opacity: 0; pointer-events: none; 
   border-radius: 999px;
   background: transparent;
   color: var(--fg);
-  font: 500 14px system-ui, sans-serif;
+  font: 500 14px var(--font-sans);
   cursor: pointer;
 }
 .settings button:hover { border-color: rgba(255, 255, 255, 0.4); }

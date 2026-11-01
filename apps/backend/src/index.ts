@@ -47,7 +47,33 @@ if (env.STATIC_DIR) {
       /(\.html|\/sw\.js|\.webmanifest)$/.test(path) ? "no-cache" : "public, max-age=31536000, immutable",
     );
 
-  app.get("/", serveStatic({ root: dir, rewriteRequestPath: () => "/landing/index.html", onFound: cacheHeaders }));
+  // Landing page: link previews (og:image) need absolute URLs, so the public origin is filled in here.
+  let landingHtml: string | null = null;
+  app.get("/", async (c) => {
+    landingHtml ??= (await Bun.file(`${dir}/landing/index.html`).text()).replaceAll(
+      "%PUBLIC_URL%",
+      env.PUBLIC_APP_URL.replace(/\/$/, ""),
+    );
+    c.header("Cache-Control", "no-cache");
+    return c.html(landingHtml);
+  });
+
+  // Brand files (fonts, favicons, social image) have fixed names, so they're cached for a month, not forever.
+  const brandCache = (path: string, c: { header: (k: string, v: string) => void }) =>
+    c.header("Cache-Control", path.endsWith(".css") ? "public, max-age=86400" : "public, max-age=2592000");
+  app.use("/brand/*", serveStatic({ root: dir, onFound: brandCache }));
+  // Browsers and iOS request these from the site root by default.
+  for (const file of ["favicon.ico", "apple-touch-icon.png"]) {
+    app.get(`/${file}`, serveStatic({ root: dir, rewriteRequestPath: () => `/brand/${file}`, onFound: brandCache }));
+  }
+  // Only the marketing page belongs in search results; events, dashboards and displays are private.
+  app.get("/robots.txt", (c) =>
+    c.text(
+      ["User-agent: *", "Allow: /$", "Disallow: /join/", "Disallow: /host/", "Disallow: /slideshow/", "Disallow: /open/", "Disallow: /api/", ""].join(
+        "\n",
+      ),
+    ),
+  );
   // Per-event manifest, so an installed guest app opens straight into its event.
   app.get("/join/manifest.webmanifest", (c) => guestManifest(`${dir}/join/manifest.webmanifest`, c.req.query("slug")));
   app.use("/landing/*", serveStatic({ root: dir, onFound: cacheHeaders }));
@@ -71,7 +97,32 @@ app.onError((err, c) => {
   return c.json({ error: "Internal server error" }, 500);
 });
 
-app.notFound((c) => c.json({ error: "Not found" }, 404));
+// API clients get JSON; people who mistype a URL get a friendly page.
+app.notFound((c) => {
+  const path = new URL(c.req.url).pathname;
+  if (path.startsWith("/api/") || !c.req.header("accept")?.includes("text/html")) {
+    return c.json({ error: "Not found" }, 404);
+  }
+  return c.html(notFoundPage, 404);
+});
+
+const notFoundPage = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page not found · SnapShare</title><meta name="robots" content="noindex">
+<link rel="icon" href="/favicon.ico" sizes="48x48"><link rel="icon" href="/brand/favicon.svg" type="image/svg+xml">
+<style>@import url("/brand/fonts.css");
+:root{--bg:#f7f5f1;--text:#1b1a18;--muted:#6f6962;--gold:#9a7647}
+@media (prefers-color-scheme:dark){:root{--bg:#121110;--text:#f1ede7;--muted:#a39c93;--gold:#c8a97e}}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box;text-align:center;
+background:radial-gradient(900px 420px at 50% -10%,rgb(200 169 126/.22),transparent 70%),var(--bg);color:var(--text);
+font:16px/1.55 "Inter Variable",system-ui,sans-serif}
+main{max-width:420px}img{width:56px;height:56px;border-radius:22%;box-shadow:0 8px 24px -10px rgb(0 0 0/.4)}
+p.k{margin:28px 0 8px;font-size:12px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;color:var(--gold)}
+h1{margin:0;font:400 46px/1.05 "Instrument Serif",Georgia,serif}p{color:var(--muted);margin:14px 0 28px}
+a.b{display:inline-flex;padding:13px 24px;border-radius:999px;background:var(--text);color:var(--bg);text-decoration:none;font-weight:600}</style></head>
+<body><main><img src="/brand/favicon.svg" alt=""><p class="k">404</p><h1>This page wandered off</h1>
+<p>If you scanned a QR code, check the event code under it — or ask your host for the link.</p>
+<a class="b" href="/">Go to SnapShare</a></main></body></html>`;
 
 if (env.RUN_MIGRATIONS) {
   await migrate(db, { migrationsFolder: `${import.meta.dir}/../drizzle` });

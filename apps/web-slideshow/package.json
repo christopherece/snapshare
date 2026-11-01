@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@snapshare/brand": "workspace:*",
     "@snapshare/shared": "workspace:*"
   },
   "devDependencies": {

@@ -1,3 +1,5 @@
+@import "@snapshare/brand/tokens.css";
+
 /* SnapShare landing page — same paper/ink/gold palette as the host dashboard and join page. */
 :root {
   --bg: #f7f5f1;
@@ -11,8 +13,8 @@
   --primary: #1b1a18;
   --primary-text: #faf8f5;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 12px 40px rgba(40, 30, 15, 0.08);
-  --serif: Georgia, "Times New Roman", serif;
-  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --serif: var(--font-serif);
+  --sans: var(--font-sans);
   color-scheme: light;
 }
 
@@ -204,18 +206,14 @@ summary:focus-visible {
   font-size: 18px;
 }
 .logo-mark {
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
-  border: 2px solid var(--text);
-  position: relative;
+  width: 28px;
+  height: 28px;
+  border-radius: 22%;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
 }
-.logo-mark::after {
-  content: "";
-  position: absolute;
-  inset: 4px;
-  border-radius: 50%;
-  background: var(--accent-soft);
+.logo.small .logo-mark {
+  width: 24px;
+  height: 24px;
 }
 .nav-links {
   display: flex;

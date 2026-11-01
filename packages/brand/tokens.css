@@ -1,0 +1,46 @@
+/*
+ * SnapShare shared brand tokens — imported first by every web app:
+ *   @import "@snapshare/brand/tokens.css";
+ *
+ * Fonts are self-hosted from our own domain (no third-party font request). Their @font-face rules live in
+ * fonts.css, served as a static file at /brand/fonts.css and pulled in by each app's HTML — the bundler would
+ * otherwise inline the font files into every CSS bundle. Only Latin + Latin Extended (te reo Māori macrons)
+ * are shipped; browsers download a font file only when the page uses characters in its unicode-range.
+ */
+
+:root {
+  /* Type */
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-serif: "Instrument Serif", ui-serif, Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+
+  /* Brand palette (apps map these onto their light/dark surface tokens) */
+  --brand-ink: #1b1a18;
+  --brand-paper: #f7f5f1;
+  --brand-gold: #c8a97e;
+  --brand-gold-deep: #9a7647;
+
+  /* Shape & motion */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Logo lockup (markup: logo.ts) */
+.ss-logo { display: inline-flex; align-items: center; gap: 10px; }
+.ss-logo-mark { display: inline-flex; flex: none; }
+.ss-logo-mark svg { display: block; border-radius: 22%; box-shadow: 0 1px 2px rgb(0 0 0 / 0.15); }
+.ss-logo-word { font-family: var(--font-serif); font-size: 1.45em; line-height: 1; letter-spacing: -0.01em; }
+.ss-logo-label {
+  padding: 3px 8px; border-radius: 999px; font: 600 10.5px/1.2 var(--font-sans);
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--brand-gold-deep); background: color-mix(in srgb, var(--brand-gold) 18%, transparent);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01"; /* Inter: single-storey a, open digits */
+  text-rendering: optimizeLegibility;
+}

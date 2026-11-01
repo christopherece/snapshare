@@ -1,3 +1,5 @@
+@import "@snapshare/brand/tokens.css";
+
 :root {
   --bg: #f7f5f1;
   --surface: #ffffff;
@@ -46,12 +48,13 @@ html, body { margin: 0; height: 100%; }
 body {
   background: var(--bg);
   color: var(--text);
-  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: none;
 }
 button { font: inherit; color: inherit; cursor: pointer; }
-h1, h2 { margin: 0; font-weight: 400; font-family: Georgia, "Times New Roman", serif; }
+h1, h2 { margin: 0; font-weight: 400; font-family: var(--font-serif); letter-spacing: -0.01em; }
 .kicker { margin: 0 0 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.25em; text-transform: uppercase; color: var(--accent); }
 .muted { color: var(--muted); margin: 4px 0 0; }
 .small { font-size: 13px; }
@@ -89,13 +92,77 @@ input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); ou
 
 /* ─── Join ─────────────────────────────────────────────────── */
 
-.join { min-height: 100dvh; display: grid; place-items: center; padding: calc(24px + var(--safe-top)) 24px calc(24px + var(--safe-bottom)); }
-.join-card { width: 100%; max-width: 420px; display: grid; gap: 14px; }
-.join-card h1 { font-size: 38px; line-height: 1.15; }
-.join-card .fields { display: grid; gap: 10px; margin-top: 18px; }
-.join-card .btn { margin-top: 10px; width: 100%; }
-.fineprint { font-size: 12.5px; color: var(--muted); text-align: center; margin: 0; }
-.fineprint.link { text-decoration: underline; }
+.join {
+  position: relative; isolation: isolate; overflow: hidden;
+  min-height: 100dvh; display: flex; flex-direction: column; align-items: center;
+  padding: calc(18px + var(--safe-top)) 22px calc(28px + var(--safe-bottom));
+}
+/* Warm, slowly drifting glow behind the card — the brand gold on paper (or ink in dark mode). */
+.join-glow {
+  position: absolute; inset: -20% -30% auto; height: 70vh; z-index: -1; pointer-events: none;
+  background:
+    radial-gradient(40% 50% at 30% 40%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 70%),
+    radial-gradient(35% 45% at 75% 30%, color-mix(in srgb, #e8b9a0 30%, transparent), transparent 70%);
+  filter: blur(30px); opacity: 0.75;
+  animation: drift 16s ease-in-out infinite alternate;
+}
+@keyframes drift { to { transform: translate3d(4%, 3%, 0) scale(1.06); } }
+.join-top { width: 100%; max-width: 440px; display: flex; justify-content: center; padding: 6px 0 4px; font-size: 16px; }
+
+.join-card {
+  width: 100%; max-width: 440px; margin: auto 0; display: grid; gap: 16px;
+  padding: 30px 26px 24px; border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04), 0 24px 60px -20px rgb(60 40 10 / 0.25);
+  backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  animation: rise 0.5s var(--ease-out) both;
+}
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } }
+.join-card .kicker { margin: 0; }
+.join-card h1 { font-size: clamp(38px, 10vw, 50px); line-height: 1.05; text-wrap: balance; }
+.join-meta { display: flex; flex-wrap: wrap; gap: 8px; }
+.meta-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px;
+  background: var(--surface-2); color: var(--muted); font-size: 13.5px; font-weight: 500;
+}
+.meta-chip svg { width: 15px; height: 15px; }
+
+.steps {
+  list-style: none; margin: 4px 0 0; padding: 14px 6px; display: grid; grid-template-columns: repeat(3, 1fr);
+  border-radius: var(--radius-lg); background: var(--surface-2);
+}
+.steps li { display: grid; justify-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--muted); position: relative; }
+.steps li + li::before {
+  content: ""; position: absolute; left: -12%; top: 13px; width: 24%; height: 1px;
+  background: color-mix(in srgb, var(--muted) 40%, transparent);
+}
+.steps svg { width: 26px; height: 26px; padding: 5px; border-radius: 50%; background: var(--surface); color: var(--text); box-sizing: content-box; }
+
+.join-card .fields { display: grid; gap: 10px; }
+.join-card .fields:empty { display: none; }
+.join-card .btn { width: 100%; }
+.join-card .btn svg { width: 20px; height: 20px; }
+.btn.primary { box-shadow: 0 10px 24px -10px rgb(0 0 0 / 0.45); }
+input { transition: border-color 0.15s, background 0.15s; }
+input:focus { border-color: color-mix(in srgb, var(--accent) 70%, transparent); background: var(--surface); outline: none; }
+
+.join-skeleton { display: grid; gap: 12px; padding: 4px 0 8px; }
+.join-skeleton span {
+  height: 14px; width: 55%; border-radius: 8px;
+  background: linear-gradient(90deg, var(--surface-2), color-mix(in srgb, var(--surface-2) 40%, var(--surface)), var(--surface-2));
+  background-size: 200% 100%; animation: shimmer 1.2s linear infinite;
+}
+.join-skeleton span:nth-child(2) { height: 44px; width: 85%; }
+.join-skeleton span:nth-child(3) { width: 40%; }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+.fineprint { font-size: 12.5px; color: var(--muted); text-align: center; margin: 0; text-wrap: balance; }
+.fineprint.link { text-decoration: underline; text-underline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .join-glow, .join-card, .join-skeleton span { animation: none; }
+}
 
 /* ─── Camera (always dark) ─────────────────────────────────── */
 

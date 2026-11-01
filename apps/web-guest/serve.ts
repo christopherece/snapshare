@@ -1,4 +1,5 @@
 // Dev server reachable from phones on the LAN. In production the backend serves the built app at /join/*.
+import { brandRoutes } from "@snapshare/brand/dev-routes";
 import index from "./index.html";
 import { guestManifest } from "../backend/src/lib/guest-manifest.ts";
 
@@ -6,6 +7,7 @@ const server = Bun.serve({
   hostname: "0.0.0.0",
   port: Number(process.env.PORT ?? 5175),
   routes: {
+    ...brandRoutes,
     "/": index,
     // public/ is served as-is (production copies it into the built /join/ folder).
     "/join/manifest.webmanifest": (req) =>

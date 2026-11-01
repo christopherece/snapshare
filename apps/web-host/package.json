@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@snapshare/brand": "workspace:*",
     "@snapshare/shared": "workspace:*",
     "react": "19.2.3",
     "react-dom": "19.2.3"
