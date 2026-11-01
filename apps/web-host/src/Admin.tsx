@@ -120,6 +120,7 @@ function EventsTab() {
                   ) : (
                     <span className="badge">Uploads closed</span>
                   )}
+                  <div className="muted small">{e.keepUntil ? `Deletes ${fmt(e.keepUntil)}` : "Kept forever"}</div>
                 </td>
                 <td className="actions">
                   <a className="btn small" href={`#/events/${e.id}`}>
@@ -155,6 +156,13 @@ function EventsTab() {
   );
 }
 
+/** YYYY-MM-DD, `days` after the event date (or today if it has none). */
+function afterEvent(eventDate: string, days: number) {
+  const d = eventDate ? new Date(`${eventDate}T00:00:00`) : new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function EventEditor({ event, onClose, onSaved }: { event: HostEvent; onClose: () => void; onSaved: () => void }) {
   const [name, setName] = useState(event.name);
   const [location, setLocation] = useState(event.location ?? "");
@@ -163,6 +171,7 @@ function EventEditor({ event, onClose, onSaved }: { event: HostEvent; onClose: (
   const [clearPasscode, setClearPasscode] = useState(false);
   const [requireApproval, setRequireApproval] = useState(event.requireApproval);
   const [uploadsOpen, setUploadsOpen] = useState(event.uploadsOpen);
+  const [keepUntil, setKeepUntil] = useState(event.keepUntil ? event.keepUntil.slice(0, 10) : "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -185,6 +194,7 @@ function EventEditor({ event, onClose, onSaved }: { event: HostEvent; onClose: (
         endsAt: startsAt ? new Date(startsAt.getTime() + 2 * 86_400_000).toISOString() : null,
         requireApproval,
         uploadsOpen,
+        keepUntil: keepUntil ? new Date(`${keepUntil}T23:59:59`).toISOString() : null,
         ...(passcode ? { passcode } : clearPasscode ? { passcode: null } : {}),
       });
       onSaved();
@@ -241,6 +251,29 @@ function EventEditor({ event, onClose, onSaved }: { event: HostEvent; onClose: (
             <input type="checkbox" checked={requireApproval} onChange={(e) => setRequireApproval(e.target.checked)} />
             <span>
               Approve photos before they go public<small>New photos wait in "To review".</small>
+            </span>
+          </label>
+          <label className="span-2">
+            Keep gallery until
+            <input type="date" value={keepUntil} onChange={(e) => setKeepUntil(e.target.value)} />
+            <small className="muted">
+              The plan's gallery period. After this date the gallery and all its photos are deleted. Leave empty to keep it forever.
+            </small>
+            <span className="row wrap">
+              {(
+                [
+                  ["7 days", 7],
+                  ["90 days", 90],
+                  ["1 year", 365],
+                ] as const
+              ).map(([label, days]) => (
+                <button key={label} type="button" className="btn small" onClick={() => setKeepUntil(afterEvent(date, days))}>
+                  {label}
+                </button>
+              ))}
+              <button type="button" className="btn small ghost" onClick={() => setKeepUntil("")}>
+                Forever
+              </button>
             </span>
           </label>
         </div>

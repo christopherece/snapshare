@@ -31,9 +31,12 @@ export const adminRoutes = new Hono<AppEnv>()
     );
   })
 
-  /** Edit any event's details, and suspend/restore it. */
+  /** Edit any event's details, suspend/restore it, and set how long its gallery is kept. */
   .patch("/events/:id", async (c) => {
-    const input = await body(c, eventInput.partial().extend({ suspended: z.boolean().optional() }));
+    const input = await body(
+      c,
+      eventInput.partial().extend({ suspended: z.boolean().optional(), keepUntil: z.coerce.date().nullish() }),
+    );
     const event = await updateEvent(c.req.param("id"), input);
     if (!event) notFound("Event");
     return c.json(hostEventView(event));

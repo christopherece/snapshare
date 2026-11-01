@@ -1,0 +1,1 @@
+ALTER TABLE "events" ADD COLUMN "keep_until" timestamp with time zone;

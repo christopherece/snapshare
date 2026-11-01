@@ -48,6 +48,8 @@ export function EventPage({ eventId, token, me }: { eventId: string; token: stri
         </p>
       )}
 
+      {event.keepUntil && <KeepUntilNotice keepUntil={event.keepUntil} />}
+
       <div className="event-layout">
         <aside className="side">
           <SharePanel event={event} />
@@ -519,5 +521,22 @@ function Lightbox(props: {
         </span>
       </div>
     </div>
+  );
+}
+
+/** The plan's gallery period: remind the host to download before the gallery is deleted. */
+function KeepUntilNotice({ keepUntil }: { keepUntil: string }) {
+  const until = new Date(keepUntil);
+  const days = Math.ceil((until.getTime() - Date.now()) / 86_400_000);
+  const date = until.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+  return days <= 14 ? (
+    <p className="notice warn">
+      This gallery will be <strong>deleted on {date}</strong>
+      {days > 0 ? ` (in ${days} day${days === 1 ? "" : "s"})` : ""}. Download your photos before then, or ask us to keep it longer.
+    </p>
+  ) : (
+    <p className="notice">
+      Your gallery is kept until <strong>{date}</strong>. Download your photos before then to keep them.
+    </p>
   );
 }

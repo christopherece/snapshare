@@ -83,6 +83,8 @@ export const events = pgTable(
     coverKey: text("cover_key"),
     /** Set by an admin: the event is offline for guests, displays and its host until restored. */
     suspendedAt: timestamp("suspended_at", { withTimezone: true }),
+    /** Set by an admin from the customer's plan: after this the gallery and its photos are deleted. Null keeps it forever. */
+    keepUntil: timestamp("keep_until", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [index("events_host_idx").on(t.hostId)],

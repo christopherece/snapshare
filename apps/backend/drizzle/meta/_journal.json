@@ -36,6 +36,13 @@
       "when": 1793501193016,
       "tag": "0004_funny_magik",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793524455885,
+      "tag": "0005_brave_scarlet_witch",
+      "breakpoints": true
     }
   ]
 }

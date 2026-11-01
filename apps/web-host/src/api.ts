@@ -20,6 +20,8 @@ export interface HostEvent {
   slideshowUrl: string;
   createdAt: string;
   suspended: boolean;
+  /** When the gallery is deleted (end of the plan's gallery period); null = kept forever. */
+  keepUntil: string | null;
   owner?: { id: string; name: string; email: string };
   photoCount?: number;
   pendingCount?: number;
@@ -145,7 +147,7 @@ export const api = {
 
   admin: {
     events: () => json<HostEvent[]>("/admin/events"),
-    updateEvent: (id: string, patch: EventInput & { suspended?: boolean }) =>
+    updateEvent: (id: string, patch: EventInput & { suspended?: boolean; keepUntil?: string | null }) =>
       json<HostEvent>(`/admin/events/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
     deleteEvent: (id: string) => json<{ deleted: boolean }>(`/admin/events/${id}`, { method: "DELETE" }),
     hosts: () => json<HostAccount[]>("/admin/hosts"),
