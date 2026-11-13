@@ -74,7 +74,8 @@ export const useUploadQueue = create<QueueState>()(
 
 const PENDING_DIR = `${FileSystem.documentDirectory}pending-uploads/`;
 const CONCURRENCY = 2;
-const MAX_BACKOFF_MS = 5 * 60_000;
+// Short enough that a photo never sits for minutes after a hiccup (server restart, brief outage).
+const MAX_BACKOFF_MS = 60_000;
 
 /** Where a queued photo's file lives right now (also used for local previews). */
 export const queueFileUri = (item: Pick<QueueItem, "fileName">) => PENDING_DIR + item.fileName;
@@ -93,15 +94,20 @@ export function startUploadQueue() {
     const wasOnline = useUploadQueue.getState().online;
     const online = !!state.isConnected && state.isInternetReachable !== false;
     if (online !== wasOnline) useUploadQueue.setState({ online });
-    if (online && !wasOnline) {
-      // Connectivity came back: retry everything right away instead of waiting out backoff.
-      const { items, update } = useUploadQueue.getState();
-      items.forEach((i) => i.status === "queued" && update(i.clientId, { nextAttemptAt: 0 }));
-    }
-    drain();
+    // Connectivity came back: retry everything right away instead of waiting out backoff.
+    if (online && !wasOnline) retryNow();
+    else drain();
   });
 
-  AppState.addEventListener("change", (s) => s === "active" && drain());
+  // Opening the app again is a good moment to try again too.
+  AppState.addEventListener("change", (s) => s === "active" && retryNow());
+}
+
+/** Skip any backoff wait and send what's queued now. */
+function retryNow() {
+  const { items, update } = useUploadQueue.getState();
+  items.forEach((i) => i.status === "queued" && i.nextAttemptAt > 0 && update(i.clientId, { nextAttemptAt: 0 }));
+  drain();
 }
 
 /** Compress a photo, persist it locally, and queue it for upload. Returns the local preview URI. */
@@ -214,7 +220,9 @@ async function processItem(item: QueueItem) {
       const res = await FileSystem.uploadAsync(target.uploadUrl, queueFileUri(item), {
         httpMethod: "PUT",
         uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-        sessionType: FileSystem.FileSystemSessionType.BACKGROUND, // iOS keeps uploading when backgrounded
+        // Foreground: iOS schedules background-session transfers at its own pace, which made uploads
+        // crawl. If the app is closed mid-upload the photo simply stays queued and goes on next open.
+        sessionType: FileSystem.FileSystemSessionType.FOREGROUND,
         headers: target.headers,
       });
       if (res.status < 200 || res.status >= 300) throw new Error(`Storage upload failed (${res.status})`);

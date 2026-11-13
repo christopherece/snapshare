@@ -44,7 +44,7 @@
         "expo-image-picker",
         {
           "photosPermission": "SnapShare lets you pick photos from your library to share with the event.",
-          "cameraPermission": false,
+          "cameraPermission": "SnapShare uses your camera so you can take photos and share them with the event, and to scan the event's QR code.",
           "microphonePermission": false
         }
       ],

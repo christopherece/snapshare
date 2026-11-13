@@ -18,7 +18,8 @@ const schema = z.object({
    *   ANDROID_APP_FINGERPRINTS  SHA-256 signing-certificate fingerprints, comma-separated (`eas credentials`
    *                             for the upload key, Play Console → App integrity for the Play signing key)
    */
-  IOS_APP_ID: z.string().regex(/^[A-Z0-9]{10}\.[A-Za-z0-9.-]+$/).optional(),
+  // An empty value (e.g. `IOS_APP_ID=` copied from the example) means "not set", not an invalid ID.
+  IOS_APP_ID: z.preprocess((v) => (v === "" ? undefined : v), z.string().regex(/^[A-Z0-9]{10}\.[A-Za-z0-9.-]+$/).optional()),
   ANDROID_APP_PACKAGE: z.string().default("com.snapshare.app"),
   ANDROID_APP_FINGERPRINTS: z.string().optional(),
   SLIDESHOW_URL: z.string().url(),
