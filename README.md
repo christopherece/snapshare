@@ -5,7 +5,7 @@ Guests scan a QR code, shoot with an in-app camera, and photos stream live to th
 ```
 apps/
   backend/         Bun + Hono API, WebSockets, Drizzle/Postgres, S3 presigned uploads, worker-thread media pipeline
-  mobile/          Expo (SDK 54) guest app — camera, offline upload queue, live feed
+  mobile/          Native app for Android + iOS (Expo SDK 58): guest camera, offline upload queue, live feed, host tools
   web-slideshow/   Full-screen live slideshow for TVs/projectors (Bun HTML bundler, no framework)
   web-host/        Host dashboard (React): events, QR flyer, moderation, ZIP download
   web-guest/       Guest web app (React) — what QR codes open: camera, offline queue, live feed. No install.
@@ -27,7 +27,7 @@ bun run dev:backend      # http://localhost:3000
 bun run dev:host         # http://localhost:5174 — host dashboard
 bun run dev:guest        # http://localhost:5175/join/<code> — guest web app (QR codes point here)
 bun run dev:slideshow    # http://localhost:5173/?event=<id>&key=<displayKey>
-bun run dev:mobile       # Expo dev server (SDK 57 — matches the store build of Expo Go)
+bun run dev:mobile       # Expo dev server for the native app (see apps/mobile/README.md)
 ```
 
 Testing on a phone: set `EXPO_PUBLIC_API_URL` (apps/mobile/.env) and `S3_ENDPOINT` / `S3_PUBLIC_URL` / `SLIDESHOW_URL`

@@ -1,19 +1,43 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { type CameraOrientation, type CameraType, CameraView, type FlashMode, useCameraPermissions } from "expo-camera";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect } from "expo-router";
-import { type ComponentProps, type ComponentRef, useCallback, useRef, useState } from "react";
-import { Animated, Easing, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { StatusBar } from "expo-status-bar";
+import { type ComponentProps, type ComponentRef, useCallback, useMemo, useRef, useState } from "react";
+import {
+  Alert,
+  Animated,
+  Easing,
+  Linking,
+  type NativeTouchEvent,
+  PanResponder,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { photoCorrection, watchHeldOrientation } from "../lib/orientation";
 import { enqueuePhoto, usePendingCount } from "../lib/upload-queue";
+import { colors } from "../theme";
+import { UploadStatus } from "./UploadStatus";
+import { Divider, Row, Sheet } from "./ui";
 
 interface Props {
   eventId: string;
   eventName: string;
+  guestName: string | null;
   guestToken: string;
   onOpenGallery: () => void;
+  /** Back to the app's home screen; the guest stays joined. */
+  onHome: () => void;
+  /** Forget this event on this phone. */
+  onLeave: () => void;
+  /** Go through the join screen again for a fresh session. */
+  onRejoin: () => void;
 }
 
 const FLASH_CYCLE: FlashMode[] = ["off", "auto", "on"];
@@ -24,6 +48,8 @@ const FLASH_ICON: Record<FlashMode, keyof typeof Ionicons.glyphMap> = {
   screen: "phone-portrait-outline",
 };
 const GALLERY_SIZE = 48;
+/** Most a guest can add from their library in one go. */
+const LIBRARY_LIMIT = 20;
 
 /** Icon rotation that keeps controls upright while the UI stays portrait (landscapeRight = turned clockwise). */
 const ICON_ROTATION: Record<CameraOrientation, number> = {
@@ -33,12 +59,15 @@ const ICON_ROTATION: Record<CameraOrientation, number> = {
   portraitUpsideDown: 180,
 };
 
+const touchDistance = (touches: readonly NativeTouchEvent[]) =>
+  Math.hypot(touches[0]!.pageX - touches[1]!.pageX, touches[0]!.pageY - touches[1]!.pageY);
+
 /**
  * Guest camera: one-tap capture with flash feedback, haptics, and a thumbnail
  * that "flies" into the gallery button. Capture never waits on the network —
  * photos go straight into the persistent upload queue.
  */
-export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: Props) {
+export function EventCamera({ eventId, eventName, guestName, guestToken, onOpenGallery, onHome, onLeave, onRejoin }: Props) {
   const insets = useSafeAreaInsets();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
@@ -47,9 +76,13 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
 
   const [focused, setFocused] = useState(true);
   const [ready, setReady] = useState(false);
+  const [mountError, setMountError] = useState(false);
   const [facing, setFacing] = useState<CameraType>("back");
   const [flash, setFlash] = useState<FlashMode>("off");
   const [showGrid, setShowGrid] = useState(true);
+  const [zoom, setZoom] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [importing, setImporting] = useState(0);
   const [lastThumb, setLastThumb] = useState<string | null>(null);
   const [flyingUri, setFlyingUri] = useState<string | null>(null);
   const [frontFlash, setFrontFlash] = useState(false);
@@ -89,6 +122,49 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
       };
     }, []),
   );
+
+  // ─── Pinch to zoom ────────────────────────────────────────────────────────
+  // CameraView's zoom runs 0–1 across the lens's range; a pinch moves along it logarithmically so it
+  // feels the same at any zoom level.
+
+  const zoomRef = useRef(0);
+  const pinch = useRef({ distance: 0, zoom: 0 });
+  const applyZoom = useCallback((value: number) => {
+    const next = Math.round(Math.min(1, Math.max(0, value)) * 100) / 100;
+    if (next === zoomRef.current) return;
+    zoomRef.current = next;
+    setZoom(next);
+  }, []);
+  const pinchResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: (e) => e.nativeEvent.touches.length === 2,
+        onMoveShouldSetPanResponder: (e) => e.nativeEvent.touches.length === 2,
+        onPanResponderGrant: (e) => {
+          const { touches } = e.nativeEvent;
+          pinch.current = { distance: touches.length === 2 ? touchDistance(touches) : 0, zoom: zoomRef.current };
+        },
+        onPanResponderMove: (e) => {
+          const { touches } = e.nativeEvent;
+          if (touches.length !== 2) return;
+          const distance = touchDistance(touches);
+          if (!pinch.current.distance) {
+            pinch.current = { distance, zoom: zoomRef.current };
+            return;
+          }
+          applyZoom(pinch.current.zoom + Math.log2(distance / pinch.current.distance) * 0.3);
+        },
+        onPanResponderRelease: () => {
+          pinch.current.distance = 0;
+        },
+        onPanResponderTerminate: () => {
+          pinch.current.distance = 0;
+        },
+      }),
+    [applyZoom],
+  );
+
+  // ─── Capture ──────────────────────────────────────────────────────────────
 
   const measureGallery = () => {
     if (!galleryRef.current || !rootRef.current) return;
@@ -148,6 +224,7 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
       enqueuePhoto({ uri: photo.uri, width: photo.width, height: photo.height, rotate, eventId, guestToken }).catch((err) => {
         console.warn("Failed to queue photo", err);
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        Alert.alert("That photo couldn't be saved", "Your phone may be out of storage. Free up some space and try again.");
       });
     } catch (err) {
       console.warn("Capture failed", err);
@@ -156,7 +233,76 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
     } finally {
       capturing.current = false;
     }
+    // Animated values and play* helpers are stable for the life of the component.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, facing, flash, eventId, guestToken]);
+
+  // ─── Add from the photo library ───────────────────────────────────────────
+  // Uses the system photo picker, which needs no library permission: the guest hands over only
+  // the photos they choose.
+
+  const addFromLibrary = useCallback(async () => {
+    setMenuOpen(false);
+    try {
+      const picked = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: true,
+        selectionLimit: LIBRARY_LIMIT,
+        orderedSelection: true,
+        quality: 1,
+        exif: false,
+      });
+      if (picked.canceled || !picked.assets.length) return;
+
+      let failed = 0;
+      setImporting(picked.assets.length);
+      for (const [i, asset] of picked.assets.entries()) {
+        try {
+          const local = await enqueuePhoto({
+            uri: asset.uri,
+            width: asset.width,
+            height: asset.height,
+            eventId,
+            guestToken,
+            // The picker hands us a copy in our cache — tidy it up; never touch anything else.
+            deleteSource: !!FileSystem.cacheDirectory && asset.uri.startsWith(FileSystem.cacheDirectory),
+          });
+          setLastThumb(local);
+        } catch (err) {
+          console.warn("Failed to queue library photo", err);
+          failed++;
+        }
+        setImporting(picked.assets.length - i - 1);
+      }
+      if (failed) {
+        Alert.alert(
+          failed === picked.assets.length ? "Those photos couldn't be added" : `${failed} of your photos couldn't be added`,
+          "They may be in a format this phone can't convert, or your storage is full.",
+        );
+      } else {
+        void Haptics.selectionAsync();
+      }
+    } catch (err) {
+      console.warn("Photo picker failed", err);
+      Alert.alert("Couldn't open your photos", "Please try again.");
+    } finally {
+      setImporting(0);
+    }
+  }, [eventId, guestToken]);
+
+  const confirmLeave = () => {
+    setMenuOpen(false);
+    Alert.alert(
+      `Leave ${eventName}?`,
+      pendingCount > 0
+        ? "Photos still waiting to upload will keep uploading. You can rejoin any time with the event code."
+        : "You can rejoin any time with the event code.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Leave event", style: "destructive", onPress: onLeave },
+      ],
+    );
+  };
 
   // ─── Permission states ────────────────────────────────────────────────────
 
@@ -165,19 +311,28 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
   if (!permission.granted) {
     return (
       <View className="flex-1 items-center justify-center bg-black px-10">
-        <Ionicons name="camera-outline" size={44} color="#c8a97e" />
-        <Text className="mt-5 text-center text-xl font-light text-white">Share the moment</Text>
+        <StatusBar style="light" />
+        <Ionicons name="camera-outline" size={44} color={colors.gold} />
+        <Text className="mt-5 text-center font-serif text-3xl text-white">Share the moment</Text>
         <Text className="mt-2 text-center text-base leading-6 text-white/60">
           Allow camera access to take photos that appear live at {eventName}.
         </Text>
         <Pressable
           onPress={permission.canAskAgain ? requestPermission : () => Linking.openSettings()}
+          accessibilityRole="button"
           className="mt-8 rounded-full bg-white px-8 py-3 active:opacity-80"
         >
-          <Text className="text-base font-medium text-black">
-            {permission.canAskAgain ? "Enable camera" : "Open settings"}
-          </Text>
+          <Text className="text-base font-medium text-black">{permission.canAskAgain ? "Enable camera" : "Open settings"}</Text>
         </Pressable>
+        <Pressable onPress={addFromLibrary} accessibilityRole="button" hitSlop={8} className="mt-5 py-2">
+          <Text className="text-base text-white/80 underline">Add photos from your library instead</Text>
+        </Pressable>
+        <Pressable onPress={onHome} accessibilityRole="button" hitSlop={8} className="mt-1 py-2">
+          <Text className="text-sm text-white/50">Back to home</Text>
+        </Pressable>
+        <View className="absolute left-0 right-0" style={{ bottom: insets.bottom + 32 }}>
+          <UploadStatus eventId={eventId} onRejoin={onRejoin} importing={importing} />
+        </View>
       </View>
     );
   }
@@ -204,44 +359,91 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
         measureGallery();
       }}
     >
+      {focused && <StatusBar style="light" />}
       {focused && (
         <CameraView
           ref={cameraRef}
           style={StyleSheet.absoluteFill}
           facing={facing}
           flash={flash}
+          zoom={zoom}
           animateShutter={false}
           // iOS: save landscape photos when the phone is turned, even though the UI is locked to portrait.
           responsiveOrientationWhenOrientationLocked
           onResponsiveOrientationChanged={onOrientation}
-          onCameraReady={() => setReady(true)}
-          onMountError={(e) => console.warn("Camera mount error", e.message)}
+          onCameraReady={() => {
+            setReady(true);
+            setMountError(false);
+          }}
+          onMountError={(e) => {
+            console.warn("Camera mount error", e.message);
+            setMountError(true);
+          }}
         />
       )}
 
+      {/* Two-finger pinch anywhere on the preview zooms; the controls sit above this layer. */}
+      <View style={StyleSheet.absoluteFill} {...pinchResponder.panHandlers} />
+
       {showGrid && <GridOverlay />}
+
+      {mountError && (
+        <View pointerEvents="none" style={StyleSheet.absoluteFill} className="items-center justify-center px-10">
+          <Ionicons name="videocam-off-outline" size={36} color="#fff" />
+          <Text className="mt-3 text-center text-base text-white/80">
+            The camera couldn't start. Close other camera apps and come back, or add photos from your library.
+          </Text>
+        </View>
+      )}
 
       {/* Capture flash + front "screen flash" */}
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: "#fff", opacity: flashOpacity }]} />
       {frontFlash && <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: "#fff" }]} />}
 
       {/* Top bar */}
-      <View className="absolute left-0 right-0 flex-row items-center justify-between px-5" style={{ top: insets.top + 8 }}>
-        <IconButton
-          icon={FLASH_ICON[flash]}
-          label={`Flash ${flash}`}
-          onPress={() => setFlash(FLASH_CYCLE[(FLASH_CYCLE.indexOf(flash) + 1) % FLASH_CYCLE.length]!)}
-          active={flash !== "off"}
-          spin={iconSpin}
-        />
-        <Text numberOfLines={1} className="mx-3 flex-1 text-center text-sm font-medium tracking-widest text-white/90">
+      <View
+        pointerEvents="box-none"
+        className="absolute left-0 right-0 flex-row items-center justify-between px-4"
+        style={{ top: insets.top + 8 }}
+      >
+        <View className="flex-row gap-2">
+          <IconButton icon="ellipsis-horizontal" label="Event menu" onPress={() => setMenuOpen(true)} spin={iconSpin} />
+          <IconButton
+            icon={FLASH_ICON[flash]}
+            label={`Flash ${flash}`}
+            onPress={() => setFlash(FLASH_CYCLE[(FLASH_CYCLE.indexOf(flash) + 1) % FLASH_CYCLE.length]!)}
+            active={flash !== "off"}
+            spin={iconSpin}
+          />
+        </View>
+        <Text numberOfLines={1} className="mx-2 flex-1 text-center text-[13px] font-medium tracking-widest text-white/90">
           {eventName.toUpperCase()}
         </Text>
-        <IconButton icon="grid-outline" label="Toggle grid" onPress={() => setShowGrid((g) => !g)} active={showGrid} spin={iconSpin} />
+        <View className="flex-row gap-2">
+          <IconButton icon="grid-outline" label="Toggle grid" onPress={() => setShowGrid((g) => !g)} active={showGrid} spin={iconSpin} />
+          <IconButton icon="add" label="Add photos from your library" size={26} onPress={addFromLibrary} spin={iconSpin} />
+        </View>
+      </View>
+
+      {/* Status + zoom, just above the controls */}
+      <View pointerEvents="box-none" className="absolute left-0 right-0 items-center gap-3" style={{ bottom: insets.bottom + 128 }}>
+        {zoom > 0 && (
+          <Pressable
+            onPress={() => applyZoom(0)}
+            accessibilityRole="button"
+            accessibilityLabel="Reset zoom"
+            className="flex-row items-center gap-1.5 rounded-full bg-black/55 px-3.5 py-1.5"
+          >
+            <Ionicons name="search" size={14} color={colors.gold} />
+            <Text className="text-[13px] font-medium text-white">Zoomed · tap to reset</Text>
+          </Pressable>
+        )}
+        <UploadStatus eventId={eventId} onRejoin={onRejoin} importing={importing} />
       </View>
 
       {/* Bottom bar */}
       <View
+        pointerEvents="box-none"
         className="absolute left-0 right-0 flex-row items-center justify-between px-10"
         style={{ bottom: insets.bottom + 28 }}
       >
@@ -249,6 +451,7 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
           ref={galleryRef}
           onLayout={measureGallery}
           onPress={onOpenGallery}
+          accessibilityRole="button"
           accessibilityLabel="Open event gallery"
           className="items-center justify-center overflow-hidden rounded-xl border-2 border-white/80 bg-white/10"
           style={{ width: GALLERY_SIZE, height: GALLERY_SIZE }}
@@ -267,7 +470,7 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
           )}
         </Pressable>
 
-        <Pressable onPress={takePhoto} disabled={!ready} accessibilityLabel="Take photo" hitSlop={12}>
+        <Pressable onPress={takePhoto} disabled={!ready} accessibilityRole="button" accessibilityLabel="Take photo" hitSlop={12}>
           <Animated.View
             style={{
               width: 78,
@@ -293,6 +496,7 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
           onPress={() => {
             void Haptics.selectionAsync();
             setReady(false);
+            applyZoom(0);
             setFacing((f) => (f === "back" ? "front" : "back"));
           }}
         />
@@ -310,6 +514,35 @@ export function EventCamera({ eventId, eventName, guestToken, onOpenGallery }: P
           <Image source={{ uri: flyingUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
         </Animated.View>
       )}
+
+      <Sheet visible={menuOpen} onClose={() => setMenuOpen(false)} title={eventName}>
+        <Text className="-mt-2 mb-2 text-sm text-muted dark:text-muted-dark">
+          {guestName ? `Sharing as ${guestName}` : "Sharing as a guest"}
+        </Text>
+        <Row
+          icon="images-outline"
+          title="Event gallery"
+          detail="See everyone's photos, live"
+          onPress={() => {
+            setMenuOpen(false);
+            onOpenGallery();
+          }}
+        />
+        <Divider />
+        <Row icon="add-circle-outline" title="Add photos from your library" onPress={addFromLibrary} />
+        <Divider />
+        <Row
+          icon="home-outline"
+          title="Back to home"
+          detail="You stay joined to this event"
+          onPress={() => {
+            setMenuOpen(false);
+            onHome();
+          }}
+        />
+        <Divider />
+        <Row icon="exit-outline" title="Leave this event" danger onPress={confirmLeave} />
+      </Sheet>
     </View>
   );
 }
@@ -344,12 +577,13 @@ function IconButton({
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
       accessibilityLabel={label}
-      hitSlop={10}
+      hitSlop={6}
       className="h-11 w-11 items-center justify-center rounded-full bg-black/30 active:bg-black/50"
     >
       <Animated.View style={spin}>
-        <Ionicons name={icon} size={size} color={active ? "#c8a97e" : "#fff"} />
+        <Ionicons name={icon} size={size} color={active ? colors.gold : "#fff"} />
       </Animated.View>
     </Pressable>
   );

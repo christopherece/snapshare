@@ -10,6 +10,17 @@ const schema = z.object({
   PLAY_STORE_URL: z.string().url().optional(),
   /** Where the "open in app" page (/open/:slug) sends guests: the native app (or Expo Go in dev). */
   APP_LINK_TEMPLATE: z.string().default("snapshare://join/{slug}"),
+  /**
+   * Lets https://<this domain>/join/<code> open the native app directly when it's installed (iOS universal
+   * links / Android app links). Leave unset until the app is published; the links then just open the web app.
+   *   IOS_APP_ID                "<Apple Team ID>.<bundle identifier>", e.g. ABCDE12345.com.snapshare.app
+   *   ANDROID_APP_PACKAGE       the application id (default com.snapshare.app)
+   *   ANDROID_APP_FINGERPRINTS  SHA-256 signing-certificate fingerprints, comma-separated (`eas credentials`
+   *                             for the upload key, Play Console → App integrity for the Play signing key)
+   */
+  IOS_APP_ID: z.string().regex(/^[A-Z0-9]{10}\.[A-Za-z0-9.-]+$/).optional(),
+  ANDROID_APP_PACKAGE: z.string().default("com.snapshare.app"),
+  ANDROID_APP_FINGERPRINTS: z.string().optional(),
   SLIDESHOW_URL: z.string().url(),
 
   DATABASE_URL: z.string().url(),

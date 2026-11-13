@@ -1,155 +1,153 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import type { PageResponse, PhotoDTO } from "@snapshare/shared";
-import { type InfiniteData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { PhotoDTO, ReportReason } from "@snapshare/shared";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { Image } from "expo-image";
-import { type ReactNode, useEffect, useRef, useState } from "react";
-import {
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, FlatList, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { feedKey } from "../hooks/useEventFeed";
+import { patchFeed } from "../hooks/useEventFeed";
 import { api } from "../lib/api";
+import { errorMessage } from "../lib/http";
+import { colors, useTheme } from "../theme";
+import { PhotoPager } from "./PhotoPager";
+import { Button, Notice, Sheet } from "./ui";
 
 interface Props {
   eventId: string;
   photos: PhotoDTO[];
-  index: number | null;
+  /** The photo to open on; null keeps the viewer closed. */
+  openId: string | null;
   onClose: () => void;
-  onIndexChange: (i: number) => void;
+  onEndReached?: () => void;
 }
 
-export function PhotoViewer({ eventId, photos, index, onClose, onIndexChange }: Props) {
-  const { width, height } = useWindowDimensions();
+type Panel = "comments" | "report" | null;
+
+/** The guest's full-screen viewer: swipe through the gallery, like, comment, or report a photo to the host. */
+export function PhotoViewer({ eventId, photos, openId, onClose, onEndReached }: Props) {
   const insets = useSafeAreaInsets();
-  const [showComments, setShowComments] = useState(false);
-  const current = index !== null ? photos[index] : undefined;
+  const { height } = useWindowDimensions();
+  const [panel, setPanel] = useState<Panel>(null);
+  const like = useLike(eventId);
+
+  useEffect(() => {
+    if (openId === null) setPanel(null);
+  }, [openId]);
 
   return (
-    <Modal visible={index !== null} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
-      <View className="flex-1 bg-black">
-        {index !== null && (
-          <FlatList
-            data={photos}
-            horizontal
-            pagingEnabled
-            initialScrollIndex={index}
-            getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
-            keyExtractor={(p) => p.id}
-            showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(e) => onIndexChange(Math.round(e.nativeEvent.contentOffset.x / width))}
-            renderItem={({ item }) => (
-              <DoubleTapLike photo={item} eventId={eventId}>
-                <Image
-                  source={{ uri: item.displayUrl }}
-                  placeholder={{ uri: item.thumbUrl }}
-                  style={{ width, height }}
-                  contentFit="contain"
-                  transition={150}
+    <PhotoPager
+      photos={photos}
+      openId={openId}
+      onClose={onClose}
+      onEndReached={onEndReached}
+      onDoubleTap={(photo) => {
+        if (!photo.likedByMe) like.mutate({ photo, liked: true });
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        return true;
+      }}
+    >
+      {(photo, { index, total }) => (
+        <>
+          <View className="absolute left-0 right-0 flex-row items-center justify-between px-5" style={{ top: insets.top + 8 }}>
+            <View className="flex-1 pr-3">
+              {photo.guestName && (
+                <Text numberOfLines={1} className="text-sm font-medium text-white/90">
+                  by {photo.guestName}
+                </Text>
+              )}
+              <Text className="text-xs text-white/50">
+                {index + 1} / {total}
+              </Text>
+            </View>
+            <RoundButton icon="close" label="Close" onPress={onClose} />
+          </View>
+
+          <View
+            className="absolute left-0 right-0 flex-row items-center justify-between px-6"
+            style={{ bottom: insets.bottom + 20 }}
+          >
+            <View className="flex-row items-center gap-6">
+              <Pressable
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={photo.likedByMe ? "Unlike" : "Like"}
+                className="flex-row items-center gap-2"
+                onPress={() => {
+                  void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  like.mutate({ photo, liked: !photo.likedByMe });
+                }}
+              >
+                <Ionicons
+                  name={photo.likedByMe ? "heart" : "heart-outline"}
+                  size={28}
+                  color={photo.likedByMe ? colors.heart : "#fff"}
                 />
-              </DoubleTapLike>
-            )}
-          />
-        )}
-
-        <View className="absolute left-0 right-0 flex-row items-center justify-between px-5" style={{ top: insets.top + 8 }}>
-          <Text className="text-sm text-white/80">{current?.guestName ? `by ${current.guestName}` : ""}</Text>
-          <Pressable onPress={onClose} hitSlop={12} className="h-10 w-10 items-center justify-center rounded-full bg-white/15">
-            <Ionicons name="close" size={22} color="#fff" />
-          </Pressable>
-        </View>
-
-        {current && (
-          <View className="absolute left-0 right-0 flex-row items-center gap-6 px-6" style={{ bottom: insets.bottom + 20 }}>
-            <LikeButton photo={current} eventId={eventId} />
-            <Pressable onPress={() => setShowComments(true)} className="flex-row items-center gap-2" hitSlop={8}>
-              <Ionicons name="chatbubble-outline" size={24} color="#fff" />
+                {photo.likeCount > 0 && <Text className="text-base font-medium text-white">{photo.likeCount}</Text>}
+              </Pressable>
+              <Pressable hitSlop={8} accessibilityRole="button" accessibilityLabel="Comments" onPress={() => setPanel("comments")}>
+                <Ionicons name="chatbubble-outline" size={25} color="#fff" />
+              </Pressable>
+            </View>
+            <Pressable
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Report this photo"
+              className="flex-row items-center gap-1.5"
+              onPress={() => setPanel("report")}
+            >
+              <Ionicons name="flag-outline" size={20} color="rgba(255,255,255,0.7)" />
+              <Text className="text-sm text-white/70">Report</Text>
             </Pressable>
           </View>
-        )}
 
-        {current && showComments && (
-          <CommentsSheet photoId={current.id} onClose={() => setShowComments(false)} maxHeight={height * 0.6} />
-        )}
-      </View>
-    </Modal>
+          <Sheet inline visible={panel === "comments"} onClose={() => setPanel(null)} title="Comments">
+            <Comments key={photo.id} photoId={photo.id} maxHeight={height * 0.45} />
+          </Sheet>
+          <Sheet inline visible={panel === "report"} onClose={() => setPanel(null)} title="Report this photo">
+            <ReportForm key={photo.id} photoId={photo.id} onDone={() => setPanel(null)} />
+          </Sheet>
+        </>
+      )}
+    </PhotoPager>
+  );
+}
+
+function RoundButton({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={12}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      className="h-10 w-10 items-center justify-center rounded-full bg-white/15 active:bg-white/25"
+    >
+      <Ionicons name={icon} size={22} color="#fff" />
+    </Pressable>
   );
 }
 
 // ─── Likes (optimistic) ───────────────────────────────────────────────────────
 
-function useLike(photo: PhotoDTO, eventId: string) {
+function useLike(eventId: string) {
   const qc = useQueryClient();
-  const setInCache = (patch: Partial<PhotoDTO>) =>
-    qc.setQueryData<InfiniteData<PageResponse<PhotoDTO>>>(feedKey(eventId), (data) =>
-      data
-        ? {
-            ...data,
-            pages: data.pages.map((p) => ({ ...p, items: p.items.map((i) => (i.id === photo.id ? { ...i, ...patch } : i)) })),
-          }
-        : data,
-    );
+  const setInCache = (photoId: string, patch: Partial<PhotoDTO>) =>
+    patchFeed(qc, eventId, (items) => items.map((i) => (i.id === photoId ? { ...i, ...patch } : i)));
 
   return useMutation({
-    mutationFn: (liked: boolean) => api.setLike(photo.id, liked),
-    onMutate: (liked) => {
-      const prev = { likedByMe: photo.likedByMe, likeCount: photo.likeCount };
-      setInCache({ likedByMe: liked, likeCount: Math.max(0, photo.likeCount + (liked ? 1 : -1)) });
-      return prev;
+    mutationFn: ({ photo, liked }: { photo: PhotoDTO; liked: boolean }) => api.setLike(photo.id, liked),
+    onMutate: ({ photo, liked }) => {
+      setInCache(photo.id, { likedByMe: liked, likeCount: Math.max(0, photo.likeCount + (liked ? 1 : -1)) });
+      return { likedByMe: photo.likedByMe, likeCount: photo.likeCount };
     },
-    onError: (_e, _v, prev) => prev && setInCache(prev),
-    onSuccess: (res) => setInCache({ likedByMe: res.liked, likeCount: res.likeCount }),
+    onError: (_e, { photo }, prev) => prev && setInCache(photo.id, prev),
+    onSuccess: (res, { photo }) => setInCache(photo.id, { likedByMe: res.liked, likeCount: res.likeCount }),
   });
-}
-
-function LikeButton({ photo, eventId }: { photo: PhotoDTO; eventId: string }) {
-  const like = useLike(photo, eventId);
-  return (
-    <Pressable
-      hitSlop={8}
-      className="flex-row items-center gap-2"
-      onPress={() => {
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        like.mutate(!photo.likedByMe);
-      }}
-    >
-      <Ionicons name={photo.likedByMe ? "heart" : "heart-outline"} size={26} color={photo.likedByMe ? "#ff4d6d" : "#fff"} />
-      {photo.likeCount > 0 && <Text className="text-base font-medium text-white">{photo.likeCount}</Text>}
-    </Pressable>
-  );
-}
-
-function DoubleTapLike({ photo, eventId, children }: { photo: PhotoDTO; eventId: string; children: ReactNode }) {
-  const like = useLike(photo, eventId);
-  const lastTap = useRef(0);
-  return (
-    <Pressable
-      onPress={() => {
-        const now = Date.now();
-        if (now - lastTap.current < 280 && !photo.likedByMe) {
-          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          like.mutate(true);
-        }
-        lastTap.current = now;
-      }}
-    >
-      {children}
-    </Pressable>
-  );
 }
 
 // ─── Comments ─────────────────────────────────────────────────────────────────
 
-function CommentsSheet({ photoId, onClose, maxHeight }: { photoId: string; onClose: () => void; maxHeight: number }) {
-  const insets = useSafeAreaInsets();
+function Comments({ photoId, maxHeight }: { photoId: string; maxHeight: number }) {
+  const theme = useTheme();
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const comments = useQuery({ queryKey: ["comments", photoId], queryFn: () => api.getComments(photoId) });
@@ -161,45 +159,107 @@ function CommentsSheet({ photoId, onClose, maxHeight }: { photoId: string; onClo
     },
   });
 
-  useEffect(() => setText(""), [photoId]);
-
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-      className="absolute bottom-0 left-0 right-0"
-    >
-      <Pressable className="absolute -top-[2000px] bottom-0 left-0 right-0" onPress={onClose} />
-      <View className="rounded-t-3xl bg-paper px-5 pt-4 dark:bg-ink-soft" style={{ maxHeight, paddingBottom: insets.bottom + 12 }}>
-        <View className="mb-3 h-1 w-10 self-center rounded-full bg-black/15 dark:bg-white/20" />
+    <View>
+      {comments.isPending ? (
+        <ActivityIndicator color={theme.accent} style={{ paddingVertical: 20 }} />
+      ) : comments.isError ? (
+        <Notice tone="error">{errorMessage(comments.error, "Couldn't load comments.")}</Notice>
+      ) : (
         <FlatList
-          data={comments.data ?? []}
+          data={comments.data}
+          style={{ maxHeight }}
           keyExtractor={(c) => c.id}
+          keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
             <View className="py-2">
-              <Text className="text-xs font-semibold text-ink/60 dark:text-paper/60">{item.guestName ?? "Guest"}</Text>
-              <Text className="mt-0.5 text-base text-ink dark:text-paper">{item.body}</Text>
+              <Text className="text-xs font-semibold text-muted dark:text-muted-dark">{item.guestName ?? "Guest"}</Text>
+              <Text className="mt-0.5 text-base leading-6 text-ink dark:text-paper">{item.body}</Text>
             </View>
           )}
-          ListEmptyComponent={<Text className="py-4 text-center text-ink/50 dark:text-paper/50">Say something nice ✨</Text>}
+          ListEmptyComponent={<Text className="py-4 text-center text-muted dark:text-muted-dark">Say something nice ✨</Text>}
         />
-        <View className="mt-2 flex-row items-center gap-2">
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder="Add a comment…"
-            placeholderTextColor="#999"
-            maxLength={280}
-            className="h-11 flex-1 rounded-full bg-paper-dim px-4 text-ink dark:bg-ink dark:text-paper"
-          />
-          <Pressable
-            disabled={!text.trim() || send.isPending}
-            onPress={() => send.mutate(text.trim())}
-            className="h-11 w-11 items-center justify-center rounded-full bg-ink disabled:opacity-40 dark:bg-paper"
-          >
-            <Ionicons name="arrow-up" size={20} color="#c8a97e" />
-          </Pressable>
-        </View>
+      )}
+
+      {send.isError && (
+        <Notice tone="error" className="mt-2">
+          {errorMessage(send.error, "Couldn't post your comment.")}
+        </Notice>
+      )}
+      <View className="mt-3 flex-row items-center gap-2">
+        <TextInput
+          value={text}
+          onChangeText={setText}
+          placeholder="Add a comment…"
+          placeholderTextColor={theme.placeholder}
+          selectionColor={colors.gold}
+          maxLength={280}
+          returnKeyType="send"
+          onSubmitEditing={() => text.trim() && !send.isPending && send.mutate(text.trim())}
+          accessibilityLabel="Add a comment"
+          className="h-11 flex-1 rounded-full border border-ink/10 bg-white px-4 text-base text-ink dark:border-white/10 dark:bg-ink dark:text-paper"
+        />
+        <Pressable
+          disabled={!text.trim() || send.isPending}
+          onPress={() => send.mutate(text.trim())}
+          accessibilityRole="button"
+          accessibilityLabel="Send comment"
+          className={`h-11 w-11 items-center justify-center rounded-full bg-ink dark:bg-paper ${!text.trim() || send.isPending ? "opacity-40" : ""}`}
+        >
+          <Ionicons name="arrow-up" size={20} color={colors.gold} />
+        </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </View>
+  );
+}
+
+// ─── Report to the host ───────────────────────────────────────────────────────
+
+const REASONS: { value: ReportReason; title: string; detail: string }[] = [
+  { value: "me", title: "I'm in this photo", detail: "and I'd like it removed" },
+  { value: "inappropriate", title: "It's inappropriate", detail: "offensive, explicit or unkind" },
+  { value: "other", title: "Something else", detail: "the host will take a look" },
+];
+
+function ReportForm({ photoId, onDone }: { photoId: string; onDone: () => void }) {
+  const theme = useTheme();
+  const report = useMutation({ mutationFn: (reason: ReportReason) => api.reportPhoto(photoId, reason) });
+
+  if (report.isSuccess) {
+    return (
+      <View>
+        <Notice tone="success">Thanks — the host has been told and will take a look.</Notice>
+        <Button label="Done" onPress={onDone} className="mt-4" />
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      {REASONS.map((r) => (
+        <Pressable
+          key={r.value}
+          disabled={report.isPending}
+          onPress={() => report.mutate(r.value)}
+          accessibilityRole="button"
+          accessibilityLabel={`${r.title} — ${r.detail}`}
+          className="mb-2.5 flex-row items-center gap-3 rounded-2xl border border-ink/10 bg-white px-4 py-3.5 active:opacity-70 dark:border-white/10 dark:bg-ink"
+        >
+          <View className="flex-1">
+            <Text className="text-base font-medium text-ink dark:text-paper">{r.title}</Text>
+            <Text className="mt-0.5 text-sm text-muted dark:text-muted-dark">{r.detail}</Text>
+          </View>
+          {report.isPending && report.variables === r.value ? (
+            <ActivityIndicator color={theme.accent} />
+          ) : (
+            <Ionicons name="chevron-forward" size={18} color={theme.muted} />
+          )}
+        </Pressable>
+      ))}
+      {report.isError && <Notice tone="error">{errorMessage(report.error, "Couldn't send your report.")}</Notice>}
+      <Text className="mt-2 text-center text-xs text-muted dark:text-muted-dark">
+        Only the host sees reports. Your name isn't shared.
+      </Text>
+    </View>
   );
 }

@@ -1,93 +1,95 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Redirect, router, useLocalSearchParams } from "expo-router";
-import { type ComponentProps, useState } from "react";
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from "react-native";
-import { ApiError, api } from "../src/lib/api";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { Redirect, router } from "expo-router";
+import { useState } from "react";
+import { Pressable, Text, View } from "react-native";
+import { Logo } from "../src/components/LogoMark";
+import { Button, Divider, LegalLinks, Row, Screen } from "../src/components/ui";
+import { plural } from "../src/lib/format";
+import { launch } from "../src/lib/launch";
+import { usePendingCount } from "../src/lib/upload-queue";
+import { useHostAuth } from "../src/store/host";
 import { useSession } from "../src/store/session";
+import { colors, useTheme } from "../src/theme";
 
-/**
- * Zero-friction onboarding: the QR deep link pre-fills the event code,
- * the guest optionally types a name, taps once, and lands in the camera.
- */
-export default function JoinScreen() {
-  const params = useLocalSearchParams<{ slug?: string }>();
-  const { hydrated, event, guestToken, deviceId, guestName, setSession } = useSession();
+/** Home: join an event as a guest, or manage one as its host. */
+export default function HomeScreen() {
+  const theme = useTheme();
+  const { event, guestToken, mode } = useSession();
+  const hostToken = useHostAuth((s) => s.token);
+  const pending = usePendingCount(event?.id);
 
-  const [code, setCode] = useState(params.slug ?? "");
-  const [name, setName] = useState(guestName ?? "");
-  const [passcode, setPasscode] = useState("");
-  const slug = code.trim().toLowerCase();
-
-  const eventQuery = useQuery({
-    queryKey: ["event-preview", slug],
-    queryFn: () => api.getEvent(slug),
-    enabled: slug.length >= 6,
-    retry: false,
+  // Cold start only: pick up where the person left off.
+  const [resume] = useState(() => {
+    if (launch.handled) return null;
+    if (mode === "guest" && event && guestToken) return "/camera" as const;
+    if (mode === "host" && hostToken) return "/host" as const;
+    return null;
   });
+  if (resume) return <Redirect href={resume} />;
 
-  const join = useMutation({
-    mutationFn: () =>
-      api.join(slug, { deviceId, displayName: name.trim() || null, passcode: passcode || null }),
-    onSuccess: (res) => {
-      setSession(res.event, res.guestToken, name.trim() || null);
-      router.replace("/camera");
-    },
-  });
-
-  if (!hydrated) return <View className="flex-1 bg-black" />;
-  // Already in this event (or no new code scanned) → straight to the camera.
-  if (event && guestToken && (!params.slug || params.slug === event.slug)) return <Redirect href="/camera" />;
-
-  const preview = eventQuery.data;
-  const error =
-    join.error instanceof ApiError ? join.error.message : eventQuery.isError ? "We couldn't find that event code." : null;
+  const joined = !!event && !!guestToken;
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} className="flex-1 bg-paper dark:bg-ink">
-      <View className="flex-1 justify-center px-8">
-        <Text className="text-xs font-semibold uppercase tracking-[4px] text-accent">SnapShare</Text>
-        <Text className="mt-3 text-4xl font-light text-ink dark:text-paper">
-          {preview ? preview.name : "Join the event"}
+    <Screen scroll>
+      <View className="pt-6">
+        <Logo />
+      </View>
+
+      <View className="flex-1 justify-center py-10">
+        <Text accessibilityRole="header" className="font-serif text-5xl leading-[54px] text-ink dark:text-paper">
+          Every guest's photos.{"\n"}
+          <Text className="font-serif-italic text-accent-deep dark:text-accent">One live album.</Text>
         </Text>
-        {preview?.location && <Text className="mt-2 text-base text-ink/60 dark:text-paper/60">{preview.location}</Text>}
+        <Text className="mt-4 text-base leading-6 text-muted dark:text-muted-dark">
+          Scan the QR code at the event, take photos, and watch them appear live — in the gallery and on the big screen.
+        </Text>
 
-        <View className="mt-10 gap-3">
-          {!params.slug && (
-            <Field value={code} onChangeText={setCode} placeholder="Event code" autoCapitalize="none" maxLength={32} />
-          )}
-          <Field value={name} onChangeText={setName} placeholder="Your name (optional)" maxLength={60} />
-          {preview?.requiresPasscode && (
-            <Field value={passcode} onChangeText={setPasscode} placeholder="Event passcode" secureTextEntry />
-          )}
+        {joined && (
+          <Pressable
+            onPress={() => router.push("/camera")}
+            accessibilityRole="button"
+            accessibilityLabel={`Continue at ${event.name}`}
+            className="mt-8 flex-row items-center gap-4 rounded-3xl bg-ink p-5 active:opacity-90 dark:bg-ink-soft"
+          >
+            <View className="h-12 w-12 items-center justify-center rounded-full bg-white/10">
+              <Ionicons name="camera" size={22} color={colors.gold} />
+            </View>
+            <View className="flex-1">
+              <Text className="text-xs font-semibold uppercase tracking-[2px] text-accent">Continue at</Text>
+              <Text numberOfLines={1} className="mt-0.5 font-serif text-2xl text-paper">
+                {event.name}
+              </Text>
+              {pending > 0 && <Text className="mt-0.5 text-sm text-white/60">{plural(pending, "photo")} still uploading</Text>}
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.6)" />
+          </Pressable>
+        )}
+
+        <View className="mt-8 gap-3">
+          <Button
+            label={joined ? "Scan another event's QR" : "Scan the event QR"}
+            icon="qr-code-outline"
+            variant={joined ? "secondary" : "primary"}
+            onPress={() => router.push("/scan")}
+          />
+          <Button label="Enter an event code" icon="keypad-outline" variant="secondary" onPress={() => router.push("/join")} />
         </View>
+      </View>
 
-        {error && <Text className="mt-4 text-sm text-red-500">{error}</Text>}
-
-        <Pressable
-          disabled={!preview || join.isPending}
-          onPress={() => join.mutate()}
-          className="mt-8 h-14 items-center justify-center rounded-full bg-ink active:opacity-80 disabled:opacity-40 dark:bg-paper"
-        >
-          {join.isPending ? (
-            <ActivityIndicator color="#888" />
-          ) : (
-            <Text className="text-base font-medium text-paper dark:text-ink">Start taking photos</Text>
-          )}
-        </Pressable>
-        <Text className="mt-4 text-center text-xs text-ink/40 dark:text-paper/40">
-          No account needed. Your photos are shared with the host and guests.
+      <View>
+        <Divider />
+        <Row
+          icon={hostToken ? "albums-outline" : "person-circle-outline"}
+          title={hostToken ? "Your events" : "Hosting an event?"}
+          detail={hostToken ? "Moderate photos, share the QR, run the slideshow" : "Sign in to manage your event"}
+          onPress={() => router.push("/host")}
+        />
+        <Divider />
+        <LegalLinks className="mt-5" />
+        <Text className="mt-1 text-center text-xs" style={{ color: theme.placeholder }}>
+          No account needed to share photos.
         </Text>
       </View>
-    </KeyboardAvoidingView>
-  );
-}
-
-function Field(props: ComponentProps<typeof TextInput>) {
-  return (
-    <TextInput
-      placeholderTextColor="#999"
-      className="h-14 rounded-2xl bg-paper-dim px-5 text-base text-ink dark:bg-ink-soft dark:text-paper"
-      {...props}
-    />
+    </Screen>
   );
 }

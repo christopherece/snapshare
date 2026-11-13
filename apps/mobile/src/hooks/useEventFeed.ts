@@ -1,14 +1,24 @@
 import type { PageResponse, PhotoDTO, WsServerMessage } from "@snapshare/shared";
-import { type InfiniteData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { type InfiniteData, type QueryClient, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
-import { AppState } from "react-native";
-import { api } from "../lib/api";
-import { WS_URL } from "../lib/config";
+import { ApiError, api } from "../lib/api";
+import { connectEventSocket } from "../lib/socket";
 
-type FeedData = InfiniteData<PageResponse<PhotoDTO>, string | null>;
+export type FeedData = InfiniteData<PageResponse<PhotoDTO>, string | null>;
 
 export const feedKey = (eventId: string) => ["feed", eventId] as const;
 
+/** Apply a change to every loaded page of the guest feed. */
+export function patchFeed(qc: QueryClient, eventId: string, fn: (items: PhotoDTO[], pageIndex: number) => PhotoDTO[]) {
+  qc.setQueryData<FeedData>(feedKey(eventId), (data) =>
+    data ? { ...data, pages: data.pages.map((p, i) => ({ ...p, items: fn(p.items, i) })) } : data,
+  );
+}
+
+/** The guest's session no longer works for this event (ended, removed, or the event was taken down). */
+export const isSessionEnded = (err: unknown) => err instanceof ApiError && [401, 403, 404, 410].includes(err.status);
+
+/** The event's live gallery: paged history plus real-time updates over the WebSocket. */
 export function useEventFeed(eventId: string, guestToken: string) {
   const qc = useQueryClient();
 
@@ -17,20 +27,16 @@ export function useEventFeed(eventId: string, guestToken: string) {
     queryFn: ({ pageParam }) => api.getPhotos(eventId, pageParam),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
+    retry: (failures, err) => !isSessionEnded(err) && failures < 2,
   });
 
   useEffect(() => {
-    const patch = (fn: (items: PhotoDTO[], pageIndex: number) => PhotoDTO[]) =>
-      qc.setQueryData<FeedData>(feedKey(eventId), (data) =>
-        data ? { ...data, pages: data.pages.map((p, i) => ({ ...p, items: fn(p.items, i) })) } : data,
-      );
+    const patch = (fn: (items: PhotoDTO[], pageIndex: number) => PhotoDTO[]) => patchFeed(qc, eventId, fn);
 
     const onMessage = (msg: WsServerMessage) => {
       switch (msg.type) {
         case "photo.added":
-          patch((items, i) =>
-            i === 0 && !items.some((p) => p.id === msg.photo.id) ? [msg.photo, ...items] : items,
-          );
+          patch((items, i) => (i === 0 && !items.some((p) => p.id === msg.photo.id) ? [msg.photo, ...items] : items));
           break;
         case "photo.updated":
           patch((items) => items.map((p) => (p.id === msg.photo.id ? { ...msg.photo, likedByMe: p.likedByMe } : p)));
@@ -42,70 +48,26 @@ export function useEventFeed(eventId: string, guestToken: string) {
           patch((items) => items.map((p) => (p.id === msg.photoId ? { ...p, likeCount: msg.likeCount } : p)));
           break;
         case "comment.added":
-          qc.invalidateQueries({ queryKey: ["comments", msg.photoId] });
+          void qc.invalidateQueries({ queryKey: ["comments", msg.photoId] });
           break;
       }
     };
 
-    return connectEventSocket(eventId, guestToken, onMessage, () =>
-      // After a reconnect we may have missed messages — refetch the first page.
-      qc.invalidateQueries({ queryKey: feedKey(eventId), refetchType: "active" }),
-    );
+    return connectEventSocket({
+      eventId,
+      role: "guest",
+      token: guestToken,
+      onMessage,
+      // After a reconnect we may have missed messages — refetch what's on screen.
+      onReconnect: () => void qc.invalidateQueries({ queryKey: feedKey(eventId), refetchType: "active" }),
+    });
   }, [eventId, guestToken, qc]);
 
-  const photos = useMemo(() => query.data?.pages.flatMap((p) => p.items) ?? [], [query.data]);
+  const photos = useMemo(() => {
+    // A photo can arrive over the socket and again in a later page; show it once.
+    const seen = new Set<string>();
+    return (query.data?.pages.flatMap((p) => p.items) ?? []).filter((p) => !seen.has(p.id) && seen.add(p.id));
+  }, [query.data]);
+
   return { ...query, photos };
-}
-
-/**
- * Resilient WebSocket: exponential backoff reconnects, and disconnects while
- * the app is backgrounded to save battery. Returns a cleanup function.
- */
-function connectEventSocket(
-  eventId: string,
-  token: string,
-  onMessage: (msg: WsServerMessage) => void,
-  onReconnect: () => void,
-) {
-  let ws: WebSocket | null = null;
-  let retry = 0;
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  let closed = false;
-  let hasConnected = false;
-
-  const open = () => {
-    if (closed || ws) return;
-    // Token goes in the subprotocol header, not the URL, so it stays out of proxy logs.
-    ws = new WebSocket(`${WS_URL}?eventId=${eventId}`, ["snapshare", `snapshare.guest.${token}`]);
-    ws.onopen = () => {
-      if (hasConnected) onReconnect();
-      hasConnected = true;
-      retry = 0;
-    };
-    ws.onmessage = (e) => {
-      try {
-        onMessage(JSON.parse(String(e.data)));
-      } catch {}
-    };
-    ws.onclose = () => {
-      ws = null;
-      if (closed || AppState.currentState !== "active") return;
-      timer = setTimeout(open, Math.min(1000 * 2 ** retry++, 30_000));
-    };
-  };
-
-  const close = () => {
-    if (timer) clearTimeout(timer);
-    ws?.close();
-    ws = null;
-  };
-
-  const sub = AppState.addEventListener("change", (s) => (s === "active" ? open() : close()));
-  open();
-
-  return () => {
-    closed = true;
-    sub.remove();
-    close();
-  };
 }

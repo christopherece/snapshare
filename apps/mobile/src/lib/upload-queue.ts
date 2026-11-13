@@ -39,6 +39,10 @@ export interface QueueItem {
 
 interface QueueState {
   items: QueueItem[];
+  /** Not persisted: whether the device currently has a connection. */
+  online: boolean;
+  /** Not persisted: when the most recent upload finished, for the "Uploaded" confirmation. */
+  lastCompletedAt: number;
   add: (item: QueueItem) => void;
   update: (clientId: string, patch: Partial<QueueItem>) => void;
   remove: (clientId: string) => void;
@@ -48,6 +52,8 @@ export const useUploadQueue = create<QueueState>()(
   persist(
     (set) => ({
       items: [],
+      online: true,
+      lastCompletedAt: 0,
       add: (item) => set((s) => ({ items: [...s.items, item] })),
       update: (clientId, patch) =>
         set((s) => ({ items: s.items.map((i) => (i.clientId === clientId ? { ...i, ...patch } : i)) })),
@@ -56,6 +62,7 @@ export const useUploadQueue = create<QueueState>()(
     {
       name: "snapshare-upload-queue-v1",
       storage: createJSONStorage(() => AsyncStorage),
+      partialize: ({ items }) => ({ items }),
       // Anything "uploading" when the app died needs to be retried.
       onRehydrateStorage: () => (state) => {
         state?.items.forEach((i) => i.status === "uploading" && state.update(i.clientId, { status: "queued" }));
@@ -69,9 +76,9 @@ const PENDING_DIR = `${FileSystem.documentDirectory}pending-uploads/`;
 const CONCURRENCY = 2;
 const MAX_BACKOFF_MS = 5 * 60_000;
 
-const fileUri = (item: Pick<QueueItem, "fileName">) => PENDING_DIR + item.fileName;
+/** Where a queued photo's file lives right now (also used for local previews). */
+export const queueFileUri = (item: Pick<QueueItem, "fileName">) => PENDING_DIR + item.fileName;
 
-let online = true;
 let running = 0;
 let wakeTimer: ReturnType<typeof setTimeout> | null = null;
 let started = false;
@@ -83,8 +90,9 @@ export function startUploadQueue() {
   void FileSystem.makeDirectoryAsync(PENDING_DIR, { intermediates: true }).catch(() => {});
 
   NetInfo.addEventListener((state) => {
-    const wasOnline = online;
-    online = !!state.isConnected && state.isInternetReachable !== false;
+    const wasOnline = useUploadQueue.getState().online;
+    const online = !!state.isConnected && state.isInternetReachable !== false;
+    if (online !== wasOnline) useUploadQueue.setState({ online });
     if (online && !wasOnline) {
       // Connectivity came back: retry everything right away instead of waiting out backoff.
       const { items, update } = useUploadQueue.getState();
@@ -96,7 +104,7 @@ export function startUploadQueue() {
   AppState.addEventListener("change", (s) => s === "active" && drain());
 }
 
-/** Compress a fresh capture, persist it locally, and queue it for upload. Returns the local preview URI. */
+/** Compress a photo, persist it locally, and queue it for upload. Returns the local preview URI. */
 export async function enqueuePhoto(opts: {
   uri: string;
   width: number;
@@ -105,6 +113,8 @@ export async function enqueuePhoto(opts: {
   rotate?: -90 | 0 | 90;
   eventId: string;
   guestToken: string;
+  /** Fresh captures are temp files we own; photos picked from the library belong to the user — never delete those. */
+  deleteSource?: boolean;
 }) {
   const compressed = await compressPhoto(opts.uri, opts.width, opts.height, opts.rotate);
   const clientId = randomUUID();
@@ -112,8 +122,10 @@ export async function enqueuePhoto(opts: {
 
   await FileSystem.makeDirectoryAsync(PENDING_DIR, { intermediates: true }).catch(() => {});
   await FileSystem.moveAsync({ from: compressed.uri, to: PENDING_DIR + fileName });
-  // The raw capture is still on screen in the fly-to-gallery animation; drop it shortly after.
-  setTimeout(() => void FileSystem.deleteAsync(opts.uri, { idempotent: true }), 5000);
+  if (opts.deleteSource !== false && opts.uri !== compressed.uri) {
+    // The raw capture is still on screen in the fly-to-gallery animation; drop it shortly after.
+    setTimeout(() => void FileSystem.deleteAsync(opts.uri, { idempotent: true }).catch(() => {}), 5000);
+  }
 
   useUploadQueue.getState().add({
     clientId,
@@ -129,8 +141,31 @@ export async function enqueuePhoto(opts: {
   return PENDING_DIR + fileName;
 }
 
+/**
+ * Photos the server refused (usually because the guest's session ended) get another go with a fresh
+ * token — called after re-joining, and from the "Tap to retry" pill.
+ */
+export function retryBlocked(eventId: string, guestToken: string) {
+  const { items, update } = useUploadQueue.getState();
+  items
+    .filter((i) => i.eventId === eventId && i.status === "blocked")
+    .forEach((i) => update(i.clientId, { status: "queued", guestToken, nextAttemptAt: 0, attempts: 0, error: undefined }));
+  drain();
+}
+
+/** Give up on photos that can't be uploaded and free their storage. */
+export function discardBlocked(eventId: string) {
+  const { items, remove } = useUploadQueue.getState();
+  items
+    .filter((i) => i.eventId === eventId && i.status === "blocked")
+    .forEach((i) => {
+      void FileSystem.deleteAsync(queueFileUri(i), { idempotent: true }).catch(() => {});
+      remove(i.clientId);
+    });
+}
+
 export function drain() {
-  if (!started || !online) return;
+  if (!started || !useUploadQueue.getState().online) return;
   const now = Date.now();
   const { items } = useUploadQueue.getState();
   const ready = items
@@ -158,18 +193,25 @@ async function processItem(item: QueueItem) {
     let { photoId, stored } = item;
 
     if (!stored) {
+      // The file is gone (storage cleared, restored backup…): nothing left to send.
+      const file = await FileSystem.getInfoAsync(queueFileUri(item));
+      if (!file.exists) {
+        remove(item.clientId);
+        return;
+      }
+
       let target;
       try {
         target = await api.getUploadUrl(item.guestToken, item.eventId, item.clientId);
       } catch (err) {
         // Server already has this photo (previous attempt got further than we recorded).
-        if (err instanceof ApiError && err.status === 409) return finish(item);
+        if (err instanceof ApiError && err.status === 409) return await finish(item);
         throw err;
       }
       photoId = target.photoId;
       update(item.clientId, { photoId });
 
-      const res = await FileSystem.uploadAsync(target.uploadUrl, fileUri(item), {
+      const res = await FileSystem.uploadAsync(target.uploadUrl, queueFileUri(item), {
         httpMethod: "PUT",
         uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
         sessionType: FileSystem.FileSystemSessionType.BACKGROUND, // iOS keeps uploading when backgrounded
@@ -204,8 +246,9 @@ async function processItem(item: QueueItem) {
   }
 
   async function finish(i: QueueItem) {
-    await FileSystem.deleteAsync(fileUri(i), { idempotent: true });
+    await FileSystem.deleteAsync(queueFileUri(i), { idempotent: true }).catch(() => {});
     remove(i.clientId);
+    useUploadQueue.setState({ lastCompletedAt: Date.now() });
     notifyUploaded();
   }
 }
@@ -222,3 +265,7 @@ function notifyUploaded() {
 /** Selector: number of photos still waiting to upload for an event. */
 export const usePendingCount = (eventId: string | undefined) =>
   useUploadQueue((s) => s.items.filter((i) => i.eventId === eventId && i.status !== "blocked").length);
+
+/** Selector: number of photos the server refused for an event. */
+export const useBlockedCount = (eventId: string | undefined) =>
+  useUploadQueue((s) => s.items.filter((i) => i.eventId === eventId && i.status === "blocked").length);

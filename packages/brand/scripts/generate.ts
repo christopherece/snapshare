@@ -7,6 +7,7 @@
  *   packages/brand/public/   favicon.svg, favicon.ico (16/32/48), apple-touch-icon.png, icon-192/512.png,
  *                            maskable-512.png, og-image.png (1200×630 social preview)
  *   apps/web-guest/public/icons/  the PWA install icons its manifest references
+ *   apps/mobile/assets/      the native app's icon, Android adaptive icon (+ monochrome) and splash mark
  */
 import { mkdir } from "node:fs/promises";
 import sharp from "sharp";
@@ -126,6 +127,24 @@ await write(`${guestIcons}/icon-192.png`, icon192);
 await write(`${guestIcons}/icon-512.png`, icon512);
 await write(`${guestIcons}/maskable-512.png`, mask512);
 await write(`${guestIcons}/apple-touch-icon.png`, apple);
+
+// The native app (apps/mobile/app.json references these by fixed path).
+const mobileAssets = `${root}../../apps/mobile/assets`;
+await mkdir(mobileAssets, { recursive: true });
+/** The symbol alone on a transparent canvas; `paper` picks the frame colour, `flat` drops the gold for a one-colour mask. */
+const symbolOnly = ({ scale = 1, frame = PAPER, flat = false } = {}) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">${defs}
+    <g transform="translate(256 256) scale(${scale}) translate(-256 -256)">
+      <rect x="134" y="134" width="244" height="244" rx="68" fill="none" stroke="${frame}" stroke-width="30"/>
+      <circle cx="256" cy="256" r="58" fill="${flat ? frame : "url(#dot)"}"/>
+    </g></svg>`;
+// iOS wants an opaque square (it rounds the corners itself).
+await write(`${mobileAssets}/icon.png`, await sharp(await png(fullBleed, 1024)).flatten({ background: INK_BOTTOM }).png({ compressionLevel: 9 }).toBuffer());
+// Android adaptive icon: foreground on transparency, kept inside the central safe zone (66 of 108 dp).
+await write(`${mobileAssets}/adaptive-icon.png`, await png(symbolOnly({ scale: 1.1 }), 1024));
+await write(`${mobileAssets}/adaptive-icon-monochrome.png`, await png(symbolOnly({ scale: 1.1, frame: "#ffffff", flat: true }), 1024));
+// Splash: the rounded app mark, shown small on the paper / ink background.
+await write(`${mobileAssets}/splash-icon.png`, await png(regular, 1024));
 
 // Self-hosted fonts, served at /brand/fonts/* (see public/fonts.css). Copied from @fontsource so they're
 // versioned with the repo and never fetched from a third party.

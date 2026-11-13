@@ -4,64 +4,54 @@ import type {
   JoinEventResponse,
   PageResponse,
   PhotoDTO,
+  ReportReason,
   UploadUrlResponse,
 } from "@snapshare/shared";
 import { useSession } from "../store/session";
-import { API_URL } from "./config";
+import { ApiError, http } from "./http";
 
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-    public body?: unknown,
-  ) {
-    super(message);
-  }
-}
+export { ApiError };
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const { guestToken } = useSession.getState();
-  const res = await fetch(`${API_URL}/api${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(guestToken && { "X-Guest-Token": guestToken }),
-      ...init.headers,
-    },
-  });
-  const body = res.status === 204 ? null : await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(res.status, (body as { error?: string })?.error ?? res.statusText, body);
-  return body as T;
-}
+/** Guest calls carry the opaque guest token for the event they joined. */
+const guest = (token?: string | null): Record<string, string> => {
+  const t = token ?? useSession.getState().guestToken;
+  return t ? { "X-Guest-Token": t } : {};
+};
 
 export const api = {
-  getEvent: (slug: string) => request<EventPublicDTO>(`/e/${encodeURIComponent(slug)}`),
+  getEvent: (slug: string) => http<EventPublicDTO>(`/e/${encodeURIComponent(slug)}`),
 
   join: (slug: string, input: { deviceId: string; displayName?: string | null; passcode?: string | null }) =>
-    request<JoinEventResponse>(`/e/${encodeURIComponent(slug)}/join`, { method: "POST", body: JSON.stringify(input) }),
+    http<JoinEventResponse>(`/e/${encodeURIComponent(slug)}/join`, { method: "POST", body: input }),
 
   // Upload calls take an explicit token: queued photos belong to the event they
   // were taken at, even if the guest has since switched events.
   getUploadUrl: (token: string, eventId: string, clientId: string, contentType = "image/jpeg") =>
-    request<UploadUrlResponse>(
+    http<UploadUrlResponse>(
       `/events/${eventId}/upload-url?clientId=${encodeURIComponent(clientId)}&contentType=${encodeURIComponent(contentType)}`,
-      { headers: { "X-Guest-Token": token } },
+      { headers: guest(token) },
     ),
 
   completeUpload: (token: string, photoId: string) =>
-    request<{ photoId: string; status: string }>(`/photos/${photoId}/complete`, {
-      method: "POST",
-      headers: { "X-Guest-Token": token },
-    }),
+    http<{ photoId: string; status: string }>(`/photos/${photoId}/complete`, { method: "POST", headers: guest(token) }),
 
   getPhotos: (eventId: string, cursor?: string | null) =>
-    request<PageResponse<PhotoDTO>>(`/events/${eventId}/photos${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
+    http<PageResponse<PhotoDTO>>(`/events/${eventId}/photos${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`, {
+      headers: guest(),
+    }),
 
   setLike: (photoId: string, liked: boolean) =>
-    request<{ liked: boolean; likeCount: number }>(`/photos/${photoId}/like`, { method: liked ? "PUT" : "DELETE" }),
+    http<{ liked: boolean; likeCount: number }>(`/photos/${photoId}/like`, {
+      method: liked ? "PUT" : "DELETE",
+      headers: guest(),
+    }),
 
-  getComments: (photoId: string) => request<CommentDTO[]>(`/photos/${photoId}/comments`),
+  getComments: (photoId: string) => http<CommentDTO[]>(`/photos/${photoId}/comments`, { headers: guest() }),
 
   addComment: (photoId: string, body: string) =>
-    request<CommentDTO>(`/photos/${photoId}/comments`, { method: "POST", body: JSON.stringify({ body }) }),
+    http<CommentDTO>(`/photos/${photoId}/comments`, { method: "POST", body: { body }, headers: guest() }),
+
+  /** Only the host sees reports; the guest's name isn't attached. */
+  reportPhoto: (photoId: string, reason: ReportReason) =>
+    http<{ reported: boolean }>(`/photos/${photoId}/report`, { method: "POST", body: { reason }, headers: guest() }),
 };

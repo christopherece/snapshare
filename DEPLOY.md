@@ -107,7 +107,9 @@ Guests need nothing installed. The native app is optional.
 ## 6. (Optional) Native app
 
 In `apps/mobile/.env`: `EXPO_PUBLIC_API_URL=https://snap.topitsolutions.co.nz`, then build the app with EAS
-(`bunx eas build`). The guest web app links to it via `/open/<code>` (`APP_LINK_TEMPLATE`).
+(`bunx eas build`) — the full steps are in [apps/mobile/README.md](apps/mobile/README.md). The guest web app
+links to it via `/open/<code>` (`APP_LINK_TEMPLATE`). Once the app is in the stores, set `APP_STORE_URL`,
+`PLAY_STORE_URL`, `IOS_APP_ID` and `ANDROID_APP_FINGERPRINTS` so the QR code opens the app on phones that have it.
 
 ## Who can host events
 

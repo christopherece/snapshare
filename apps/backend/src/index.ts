@@ -28,6 +28,25 @@ const app = new Hono()
     c.header("Cache-Control", "public, max-age=300");
     return c.json({ appStoreUrl: env.APP_STORE_URL ?? null, playStoreUrl: env.PLAY_STORE_URL ?? null });
   })
+  // Proof that the native app may open this domain's join links (see IOS_APP_ID / ANDROID_APP_FINGERPRINTS).
+  .get("/.well-known/apple-app-site-association", (c) => {
+    if (!env.IOS_APP_ID) return c.notFound();
+    c.header("Cache-Control", "public, max-age=3600");
+    return c.json({
+      applinks: { details: [{ appIDs: [env.IOS_APP_ID], components: [{ "/": "/join/*" }, { "/": "/open/*" }] }] },
+    });
+  })
+  .get("/.well-known/assetlinks.json", (c) => {
+    const fingerprints = (env.ANDROID_APP_FINGERPRINTS ?? "").split(",").map((f) => f.trim()).filter(Boolean);
+    if (!fingerprints.length) return c.notFound();
+    c.header("Cache-Control", "public, max-age=3600");
+    return c.json([
+      {
+        relation: ["delegate_permission/common.handle_all_urls"],
+        target: { namespace: "android_app", package_name: env.ANDROID_APP_PACKAGE, sha256_cert_fingerprints: fingerprints },
+      },
+    ]);
+  })
   .route("/open", joinPage)
   .route("/", legalRoutes)
   .route("/api/auth", authRoutes)
