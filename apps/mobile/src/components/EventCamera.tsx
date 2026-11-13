@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { type CameraOrientation, type CameraType, CameraView, type FlashMode, useCameraPermissions } from "expo-camera";
+import { type CameraOrientation, type CameraType, CameraView, type FlashMode } from "expo-camera";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
@@ -20,6 +20,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useCameraAccess } from "../hooks/useCameraAccess";
 import { photoCorrection, watchHeldOrientation } from "../lib/orientation";
 import { enqueuePhoto, usePendingCount } from "../lib/upload-queue";
 import { colors } from "../theme";
@@ -69,7 +70,7 @@ const touchDistance = (touches: readonly NativeTouchEvent[]) =>
  */
 export function EventCamera({ eventId, eventName, guestName, guestToken, onOpenGallery, onHome, onLeave, onRejoin }: Props) {
   const insets = useSafeAreaInsets();
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission, requestPermission] = useCameraAccess();
   const cameraRef = useRef<CameraView>(null);
   const rootRef = useRef<ComponentRef<typeof View>>(null);
   const galleryRef = useRef<ComponentRef<typeof View>>(null);

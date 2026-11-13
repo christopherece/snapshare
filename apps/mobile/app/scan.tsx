@@ -1,11 +1,12 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { CameraView } from "expo-camera";
 import * as Haptics from "expo-haptics";
 import { router, useFocusEffect } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useCameraAccess } from "../src/hooks/useCameraAccess";
 import { goHome } from "../src/lib/launch";
 import { parseInviteToken, parseJoinCode } from "../src/lib/links";
 import { colors } from "../src/theme";
@@ -15,16 +16,20 @@ const FRAME = 248;
 /** Point the phone at the event's QR code — the same one the phone's own camera would open in a browser. */
 export default function ScanScreen() {
   const insets = useSafeAreaInsets();
-  const [permission, requestPermission] = useCameraPermissions();
+  const [permission, requestPermission] = useCameraAccess();
   const [focused, setFocused] = useState(true);
   const [torch, setTorch] = useState(false);
   const [hint, setHint] = useState(false);
   const done = useRef(false);
   const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Ask straight away: opening the scanner is the request.
+  // Ask straight away (opening the scanner is the request) — but only once. Android still reports
+  // "can ask again" after the first "Don't allow", and asking again at once would nag.
+  const asked = useRef(false);
   useEffect(() => {
-    if (permission && !permission.granted && permission.canAskAgain) void requestPermission();
+    if (!permission || permission.granted || !permission.canAskAgain || asked.current) return;
+    asked.current = true;
+    void requestPermission();
   }, [permission, requestPermission]);
 
   useFocusEffect(

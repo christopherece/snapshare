@@ -7,7 +7,7 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { AppState } from "react-native";
+import { AppState, View } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { isSessionEnded } from "../src/hooks/useEventFeed";
 import { ApiError } from "../src/lib/http";
@@ -45,8 +45,18 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({ InstrumentSerif_400Regular, InstrumentSerif_400Regular_Italic });
   const sessionReady = useSession((s) => s.hydrated);
   const hostReady = useHostAuth((s) => s.hydrated);
-  // A font that fails to load falls back to the system face — never block the app on it.
-  const ready = (fontsLoaded || !!fontError) && sessionReady && hostReady;
+  // Never leave the app stuck on an empty screen: if fonts or saved data take too long, carry on
+  // without them (fonts fall back to the system face; a late-loading session still applies when it lands).
+  const [gaveUp, setGaveUp] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setGaveUp(true), 4000);
+    return () => clearTimeout(timer);
+  }, []);
+  const loaded = (fontsLoaded || !!fontError) && sessionReady && hostReady;
+  const ready = loaded || gaveUp;
+  useEffect(() => {
+    if (gaveUp && !loaded) console.warn("Startup is slow", { fontsLoaded, fontError: fontError?.message, sessionReady, hostReady });
+  }, [gaveUp, loaded, fontsLoaded, fontError, sessionReady, hostReady]);
 
   useEffect(() => {
     startUploadQueue();
@@ -62,7 +72,8 @@ export default function RootLayout() {
     void SplashScreen.hideAsync().catch(() => {});
   }, [ready]);
 
-  if (!ready) return null;
+  // The splash normally covers this; it's a plain brand-coloured screen rather than nothing.
+  if (!ready) return <View style={{ flex: 1, backgroundColor: theme.bg }} />;
 
   return (
     <SafeAreaProvider>
