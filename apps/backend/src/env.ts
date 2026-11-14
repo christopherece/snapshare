@@ -13,14 +13,14 @@ const schema = z.object({
   /**
    * Lets https://<this domain>/join/<code> open the native app directly when it's installed (iOS universal
    * links / Android app links). Leave unset until the app is published; the links then just open the web app.
-   *   IOS_APP_ID                "<Apple Team ID>.<bundle identifier>", e.g. ABCDE12345.com.snapshare.app
-   *   ANDROID_APP_PACKAGE       the application id (default com.snapshare.app)
+   *   IOS_APP_ID                "<Apple Team ID>.<bundle identifier>", e.g. ABCDE12345.nz.co.topitsolutions.snapshare
+   *   ANDROID_APP_PACKAGE       the application id (default nz.co.topitsolutions.snapshare)
    *   ANDROID_APP_FINGERPRINTS  SHA-256 signing-certificate fingerprints, comma-separated (`eas credentials`
    *                             for the upload key, Play Console → App integrity for the Play signing key)
    */
   // An empty value (e.g. `IOS_APP_ID=` copied from the example) means "not set", not an invalid ID.
   IOS_APP_ID: z.preprocess((v) => (v === "" ? undefined : v), z.string().regex(/^[A-Z0-9]{10}\.[A-Za-z0-9.-]+$/).optional()),
-  ANDROID_APP_PACKAGE: z.string().default("com.snapshare.app"),
+  ANDROID_APP_PACKAGE: z.string().default("nz.co.topitsolutions.snapshare"),
   ANDROID_APP_FINGERPRINTS: z.string().optional(),
   SLIDESHOW_URL: z.string().url(),
 

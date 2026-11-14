@@ -89,6 +89,8 @@ export const hostApi = {
   me: () => authed<Me>("/auth/me"),
   changePassword: (currentPassword: string, newPassword: string) =>
     authed<{ token: string }>("/auth/password", { method: "POST", body: { currentPassword, newPassword } }),
+  /** Permanently deletes the account and all of its events and photos. */
+  deleteAccount: (password: string) => authed<{ deleted: boolean }>("/auth/delete-account", { method: "POST", body: { password } }),
 
   events: () => authed<HostEvent[]>("/host/events"),
   event: (id: string) => authed<HostEvent>(`/host/events/${id}`),

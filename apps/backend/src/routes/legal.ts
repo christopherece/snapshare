@@ -40,7 +40,7 @@ nav{display:flex;gap:18px;margin-top:48px;padding-top:20px;border-top:1px solid 
 <a class="top" href="/"><img src="/brand/favicon.svg" alt="">SnapShare</a>
 <p class="k">SnapShare</p><h1>${title}</h1><p class="lead">${intro}</p><p class="meta">Last updated ${UPDATED}</p>
 ${body}
-<nav><a href="/terms">Guest &amp; host terms</a><a href="/privacy">Privacy notice</a><a href="/">Home</a></nav>
+<nav><a href="/terms">Guest &amp; host terms</a><a href="/privacy">Privacy notice</a><a href="/delete-account">Delete account</a><a href="/">Home</a></nav>
 </main></body></html>`;
 }
 
@@ -123,7 +123,7 @@ const privacyPage = () =>
 <p>Your photos, display name, likes and comments are visible to the event's host(s) and its other guests, and photos may appear on the slideshow at the venue. Reports are only visible to the host. We use service providers to run SnapShare — such as our hosting and Cloudflare, which carries the site's traffic — and they handle data only to provide that service.</p>
 
 <h2>How long we keep it</h2>
-<p>Each event's gallery is kept for the period included in the host's plan (for example 90 days or 1 year), after which the gallery and all its photos are deleted. Photos are deleted sooner if the host deletes them or the event, or if you ask us to remove photos of you. Hosts can delete any photo at any time.</p>
+<p>Each event's gallery is kept for the period included in the host's plan (for example 90 days or 1 year), after which the gallery and all its photos are deleted. Photos are deleted sooner if the host deletes them or the event, or if you ask us to remove photos of you. Hosts can delete any photo at any time, and can <a href="/delete-account">delete their account</a>, with all of their events and photos, in the app or the dashboard.</p>
 
 <h2>Your rights</h2>
 <p>Under the New Zealand Privacy Act 2020 you can ask to see or correct the information we hold about you, and ask for photos of you to be removed. If you're not happy with how we've handled a privacy matter, you can contact the <a href="https://www.privacy.org.nz">Office of the Privacy Commissioner</a>.</p>
@@ -132,7 +132,43 @@ const privacyPage = () =>
 <p>SnapShare stores your session and any photos waiting to upload in your browser's storage. It doesn't use tracking cookies.</p>`,
   );
 
+/** Public "how to delete your account" page — the address the app stores ask for. */
+const deleteAccountPage = () =>
+  page(
+    "Delete your account",
+    "How to delete a SnapShare host account, and what happens to your events and photos.",
+    `
+<div class="card">
+<h2 style="margin-top:0">In the SnapShare app</h2>
+<ol>
+  <li>Open SnapShare and sign in to your host account.</li>
+  <li>Tap the <strong>account</strong> icon (top right), then <strong>Delete my account</strong>.</li>
+  <li>Enter your password and confirm.</li>
+</ol>
+<h2>On the web</h2>
+<ol>
+  <li>Sign in at <a href="/host/">the host dashboard</a>.</li>
+  <li>Open <strong>Account</strong> and choose <strong>Delete my account</strong>.</li>
+</ol>
+<p>Can't sign in? ${contact()} from the address on your account, and we'll delete it within 30 days.</p>
+</div>
+
+<h2>What is deleted</h2>
+<ul>
+  <li>Your account: name, email address and password.</li>
+  <li>Every event you host, with all of its photos (originals and copies), guest names, likes, comments and reports.</li>
+</ul>
+<p>Deletion is immediate and permanent — <strong>download the photos you want to keep first</strong>. We don't keep any of it afterwards.</p>
+
+<h2>Guests</h2>
+<p>Guests don't have accounts. To have photos of you removed, use <strong>Report</strong> on the photo, ask the host, or ${contact()}.</p>`,
+  );
+
 export const legalRoutes = new Hono()
+  .get("/delete-account", (c) => {
+    c.header("Cache-Control", "public, max-age=3600");
+    return c.html(deleteAccountPage());
+  })
   .get("/terms", (c) => {
     c.header("Cache-Control", "public, max-age=3600");
     return c.html(termsPage());

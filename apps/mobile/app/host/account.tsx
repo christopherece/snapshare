@@ -17,6 +17,7 @@ import {
   Row,
   Screen,
   SectionTitle,
+  Sheet,
   TopBar,
 } from "../../src/components/ui";
 import { SUPPORT_EMAIL } from "../../src/lib/config";
@@ -61,12 +62,30 @@ export default function Account() {
       { text: "Sign out", style: "destructive", onPress: signOut },
     ]);
 
-  const requestDeletion = () =>
-    void openUrl(
-      `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("Delete my SnapShare account")}&body=${encodeURIComponent(
-        `Please delete my SnapShare account${me.data ? ` (${me.data.email})` : ""} and its events and photos.`,
-      )}`,
-    );
+  // ─── Delete account ─────────────────────────────────────────────────────
+  const [deleting, setDeleting] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const remove = useMutation({
+    mutationFn: () => hostApi.deleteAccount(deletePassword),
+    onSuccess: () => {
+      setDeleting(false);
+      router.replace("/");
+      // Clears the stored sign-in; the host area's queries are dropped with it (see app/host/_layout.tsx).
+      signOut();
+      Alert.alert("Account deleted", "Your account, events and photos have been deleted.");
+    },
+  });
+  const closeDelete = () => {
+    if (remove.isPending) return;
+    setDeleting(false);
+    setDeletePassword("");
+    remove.reset();
+  };
+  const confirmDelete = () =>
+    Alert.alert("Delete everything?", "Your account, every event you host and all of their photos will be deleted. This can't be undone.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => remove.mutate() },
+    ]);
 
   const version = Constants.expoConfig?.version;
 
@@ -142,10 +161,50 @@ export default function Account() {
         <Row
           icon="trash-outline"
           title="Delete my account"
-          detail="Email us and we'll remove your account, events and photos."
-          onPress={requestDeletion}
+          detail="Permanently removes your account, events and photos."
+          onPress={() => setDeleting(true)}
+          danger
         />
       </Card>
+
+      <Sheet visible={deleting} onClose={closeDelete} title="Delete your account">
+        <Text className="text-base leading-6 text-muted dark:text-muted-dark">
+          This deletes your account, every event you host and all of their photos, straight away. Download the photos you want to keep
+          first.
+        </Text>
+        <Field
+          className="mt-4"
+          label="Your password"
+          value={deletePassword}
+          onChangeText={setDeletePassword}
+          secureTextEntry
+          autoCapitalize="none"
+          autoComplete="current-password"
+          textContentType="password"
+          returnKeyType="done"
+        />
+        {remove.isError && (
+          <Notice tone="error" className="mt-3">
+            {errorMessage(remove.error, "Couldn't delete your account. Please try again.")}
+          </Notice>
+        )}
+        <View className="mt-5 gap-2.5">
+          <Button
+            label={remove.isPending ? "Deleting…" : "Delete my account permanently"}
+            variant="danger"
+            loading={remove.isPending}
+            disabled={!deletePassword}
+            onPress={confirmDelete}
+          />
+          <Button label="Cancel" variant="ghost" size="md" disabled={remove.isPending} onPress={closeDelete} />
+        </View>
+      </Sheet>
+      <Text className="mt-6 text-center text-xs leading-5 text-muted dark:text-muted-dark">
+        Need help? Email{" "}
+        <Text className="font-medium text-ink underline dark:text-paper" accessibilityRole="link" onPress={() => void openUrl(`mailto:${SUPPORT_EMAIL}`)}>
+          {SUPPORT_EMAIL}
+        </Text>
+      </Text>
 
       <LegalLinks className="mt-8" />
       {version && <Text className="mt-2 text-center text-xs text-muted dark:text-muted-dark">SnapShare {version}</Text>}

@@ -59,7 +59,7 @@ The icons come from the brand master: `bun --cwd packages/brand generate`.
 | --- | --- |
 | `EXPO_PUBLIC_API_URL` | The SnapShare server. Baked into the app at build time. `eas.json` sets it for store builds. |
 | `EXPO_PUBLIC_LINK_HOST` | Optional. Domain whose `https://<host>/join/<code>` links open the app. Defaults to the API host. |
-| `EXPO_PUBLIC_SUPPORT_EMAIL` | Optional. Where "Delete my account" requests are emailed. |
+| `EXPO_PUBLIC_SUPPORT_EMAIL` | Optional. The help address shown on the Account screen. |
 
 `app.json` holds the static app config; `app.config.ts` adds the link domain.
 
@@ -67,11 +67,10 @@ The icons come from the brand master: `bun --cwd packages/brand generate`.
 
 One-time setup:
 
-1. Create an [Expo account](https://expo.dev), then in `apps/mobile`: `bunx eas login` and `bunx eas init`
+1. Create an [Expo account](https://expo.dev), then in `apps/mobile`: `npx eas-cli login` and `npx eas-cli init`
    (links the project and records its ID).
-2. Decide the app ID **before the first store upload — it cannot be changed afterwards.** It is
-   `com.snapshare.app` in `app.json` (`ios.bundleIdentifier` and `android.package`). If you change it, also set
-   `ANDROID_APP_PACKAGE` on the server.
+2. The app ID is `nz.co.topitsolutions.snapshare` (`ios.bundleIdentifier` and `android.package` in `app.json`).
+   **It can't be changed once the app is in a store.** The server's `ANDROID_APP_PACKAGE` defaults to the same.
 3. Check the server URL in `eas.json` (`build.preview.env` and `build.production.env`).
 4. Apple Developer Program membership (iOS) and a Google Play Console account (Android).
 
@@ -79,10 +78,10 @@ Build and submit:
 
 ```bash
 cd apps/mobile
-bunx eas build --profile preview --platform android      # an APK to install and test on real phones
-bunx eas build --profile production --platform all       # store builds (AAB + IPA); build numbers auto-increment
-bunx eas submit --profile production --platform android  # uploads to the Play internal track
-bunx eas submit --profile production --platform ios      # uploads to App Store Connect / TestFlight
+npx eas-cli build --profile preview --platform android      # an APK to install and test on real phones
+npx eas-cli build --profile production --platform all       # store builds (AAB + IPA); build numbers auto-increment
+npx eas-cli submit --profile production --platform android  # uploads to the Play internal track
+npx eas-cli submit --profile production --platform ios      # uploads to App Store Connect / TestFlight
 ```
 
 EAS creates and stores the signing keys the first time you build.
@@ -99,10 +98,10 @@ Set these on the server (`.env`) and restart it:
 
 ### Store review notes
 
-- **Account deletion.** The stores require a way to delete an account that can be created in the app. The app
-  has *Account → Delete my account*, which emails the operator; the server has no self-service deletion yet.
-  Apple may ask for deletion to be completed inside the app — if so, add a `DELETE /api/auth/me` endpoint and
-  call it from `app/host/account.tsx`.
+- **Account deletion.** Hosts can delete their account (with all of their events and photos) in the app under
+  *Account → Delete my account*, and in the web dashboard under *Account*. Both call
+  `POST /api/auth/delete-account` (password required). The public page for the store forms is
+  `https://<your domain>/delete-account`.
 - **User-generated content.** Guests can report photos, hosts moderate them, and the terms are linked from the
   join and sign-in screens. Mention this in the review notes, and give the reviewer a test event code and a
   host login.

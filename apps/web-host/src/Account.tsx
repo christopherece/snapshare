@@ -1,8 +1,16 @@
 import { type FormEvent, useState } from "react";
 import { type Me, api } from "./api";
 
-/** The signed-in host's account: who they are, and changing their password. */
-export function Account({ me, onTokenChanged }: { me: Me; onTokenChanged: (token: string) => void }) {
+/** The signed-in host's account: who they are, changing their password, and deleting the account. */
+export function Account({
+  me,
+  onTokenChanged,
+  onDeleted,
+}: {
+  me: Me;
+  onTokenChanged: (token: string) => void;
+  onDeleted: () => void;
+}) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -61,6 +69,69 @@ export function Account({ me, onTokenChanged }: { me: Me; onTokenChanged: (token
           </button>
         </div>
       </form>
+
+      <DeleteAccount onDeleted={onDeleted} />
     </>
+  );
+}
+
+/** Permanently delete the account and everything in it — needs the password, then one more confirm. */
+function DeleteAccount({ onDeleted }: { onDeleted: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!confirm("Delete your account, all of your events and every photo in them? This can't be undone.")) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await api.deleteAccount(password);
+      alert("Your account has been deleted.");
+      onDeleted();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't delete your account.");
+      setBusy(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <div className="card account-card">
+        <h3>Delete account</h3>
+        <p className="muted">
+          Permanently deletes your account, your events and all of their photos. Download the photos you want to keep first.
+        </p>
+        <div className="row end">
+          <button type="button" className="btn danger" onClick={() => setOpen(true)}>
+            Delete my account…
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <form className="card account-card" onSubmit={submit}>
+      <h3>Delete account</h3>
+      <p className="muted">
+        This deletes your account, every event you host and all of their photos, straight away. It can't be undone.
+      </p>
+      <label>
+        Your password
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
+      </label>
+      {error && <p className="error">{error}</p>}
+      <div className="row end">
+        <button type="button" className="btn ghost" onClick={() => setOpen(false)} disabled={busy}>
+          Cancel
+        </button>
+        <button className="btn danger" disabled={busy || !password}>
+          {busy ? "Deleting…" : "Delete my account permanently"}
+        </button>
+      </div>
+    </form>
   );
 }

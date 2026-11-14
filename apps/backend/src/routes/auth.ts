@@ -1,4 +1,4 @@
-import { and, count, eq, gt, isNull } from "drizzle-orm";
+import { and, count, eq, gt, isNull, ne } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
@@ -6,6 +6,7 @@ import { db, schema } from "../db/client.ts";
 import type { Host } from "../db/schema.ts";
 import { env } from "../env.ts";
 import { type AppEnv, hashToken, requireHost, revokeHostSessions, signHostToken } from "../lib/auth.ts";
+import { deleteEventWithPhotos } from "../lib/events.ts";
 import { body } from "../lib/http.ts";
 import { TokenBucket, clientIp, rateLimit } from "../lib/rate-limit.ts";
 
@@ -111,6 +112,38 @@ export const authRoutes = new Hono<AppEnv>()
       .where(eq(schema.hosts.id, host.id));
     await revokeHostSessions(host.id);
     return c.json({ token: await signHostToken(host.id) });
+  })
+
+  /**
+   * Delete your own account for good: every event you host, its guests and photos (including the
+   * stored files), then the account itself. Needs the password, so a phone left signed in can't do it.
+   * The app stores require this to be possible inside the app; GET /delete-account explains it publicly.
+   */
+  .post("/delete-account", limited, requireHost, async (c) => {
+    const input = await body(c, z.object({ password: z.string().min(1).max(200) }));
+    const host = c.get("host");
+    if (!(await Bun.password.verify(input.password, host.passwordHash))) {
+      throw new HTTPException(400, { message: "That password isn't right" });
+    }
+    if (host.role === "admin") {
+      const [other] = await db
+        .select({ id: schema.hosts.id })
+        .from(schema.hosts)
+        .where(and(eq(schema.hosts.role, "admin"), ne(schema.hosts.id, host.id), isNull(schema.hosts.disabledAt)))
+        .limit(1);
+      if (!other) {
+        throw new HTTPException(409, {
+          message: "You're the only admin. Make another account admin first, so someone can still manage SnapShare.",
+        });
+      }
+    }
+
+    const events = await db.select({ id: schema.events.id }).from(schema.events).where(eq(schema.events.hostId, host.id));
+    let filesRemoved = 0;
+    for (const e of events) filesRemoved += await deleteEventWithPhotos(e.id);
+    await db.delete(schema.hosts).where(eq(schema.hosts.id, host.id));
+    console.log(`Account deleted at the owner's request: ${host.id} (${events.length} events, ${filesRemoved} files)`);
+    return c.json({ deleted: true });
   })
 
   /** Lets the sign-up page greet the invitee and pre-fill (and lock) their email. */

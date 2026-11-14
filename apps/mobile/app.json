@@ -10,13 +10,13 @@
     "backgroundColor": "#121110",
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.snapshare.app",
+      "bundleIdentifier": "nz.co.topitsolutions.snapshare",
       "config": {
         "usesNonExemptEncryption": false
       }
     },
     "android": {
-      "package": "com.snapshare.app",
+      "package": "nz.co.topitsolutions.snapshare",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "monochromeImage": "./assets/adaptive-icon-monochrome.png",

@@ -64,6 +64,7 @@ function App() {
           tokenStore.set(t);
           setToken(t);
         }}
+        onDeleted={signOut}
       />
     ) : route.page === "admin" && isAdmin ? (
       <Admin tab={route.tab} />

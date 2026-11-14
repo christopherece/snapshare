@@ -144,6 +144,8 @@ export const api = {
   changePassword: (currentPassword: string, newPassword: string) =>
     json<{ token: string }>("/auth/password", { method: "POST", body: JSON.stringify({ currentPassword, newPassword }) }),
   inviteInfo: (token: string) => json<InviteInfo>(`/auth/invite/${encodeURIComponent(token)}`),
+  deleteAccount: (password: string) =>
+    json<{ deleted: boolean }>("/auth/delete-account", { method: "POST", body: JSON.stringify({ password }) }),
 
   admin: {
     events: () => json<HostEvent[]>("/admin/events"),
