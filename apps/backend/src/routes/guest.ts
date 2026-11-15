@@ -1,4 +1,4 @@
-import type { CommentDTO, JoinEventResponse, PageResponse, PhotoDTO, UploadUrlResponse } from "@snapshare/shared";
+import type { JoinEventResponse, PageResponse, PhotoDTO, UploadUrlResponse } from "@snapshare/shared";
 import { and, desc, eq, gt, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
@@ -8,7 +8,7 @@ import { db, schema } from "../db/client.ts";
 import type { Event, Guest } from "../db/schema.ts";
 import { env } from "../env.ts";
 import { type AppEnv, assertEventLive, hashToken, randomToken, requireGuest, resolveViewer } from "../lib/auth.ts";
-import { cursor, toEventPublicDTO, toPhotoDTO } from "../lib/dto.ts";
+import { cursor, toCommentDTO, toEventPublicDTO, toPhotoDTO } from "../lib/dto.ts";
 import { body, notFound, parse } from "../lib/http.ts";
 import { TokenBucket, clientIp, rateLimit } from "../lib/rate-limit.ts";
 import { UPLOAD_URL_TTL_SECONDS, keys, presignUpload, s3, setRenditionVisibility } from "../lib/storage.ts";
@@ -347,6 +347,21 @@ export const guestRoutes = new Hono<AppEnv>()
     return c.json({ reported: true });
   })
 
+  /**
+   * A guest flags a comment. Comments are short and easy to replace, so a report hides it for everyone
+   * straight away; the host can still see (and delete) it from their dashboard or app.
+   */
+  .post("/photos/:id/comments/:commentId/report", requireGuest, rateLimit(socialLimiter, byDevice), async (c) => {
+    const photo = await guestVisiblePhoto(c.get("guest"), c.req.param("id"));
+    const [hidden] = await db
+      .update(photoComments)
+      .set({ isHidden: true })
+      .where(and(eq(photoComments.id, c.req.param("commentId")), eq(photoComments.photoId, photo.id)))
+      .returning({ id: photoComments.id });
+    if (!hidden) notFound("Comment");
+    return c.json({ hidden: true });
+  })
+
   .post("/photos/:id/comments", requireGuest, rateLimit(socialLimiter, byDevice), async (c) => {
     const guest = c.get("guest");
     const photo = await guestVisiblePhoto(guest, c.req.param("id"));
@@ -357,6 +372,3 @@ export const guestRoutes = new Hono<AppEnv>()
     return c.json(dto, 201);
   });
 
-function toCommentDTO(c: typeof photoComments.$inferSelect, guestName: string | null): CommentDTO {
-  return { id: c.id, photoId: c.photoId, guestName, body: c.body, createdAt: c.createdAt.toISOString() };
-}

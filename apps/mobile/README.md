@@ -102,10 +102,24 @@ Set these on the server (`.env`) and restart it:
   *Account → Delete my account*, and in the web dashboard under *Account*. Both call
   `POST /api/auth/delete-account` (password required). The public page for the store forms is
   `https://<your domain>/delete-account`.
-- **User-generated content.** Guests can report photos, hosts moderate them, and the terms are linked from the
-  join and sign-in screens. Mention this in the review notes, and give the reviewer a test event code and a
-  host login.
-- **Permissions.** Camera (photos and QR scanning) and photo library (picking photos to share). No microphone,
-  location or tracking.
+- **User-generated content** (Apple guideline 1.2, Google UGC policy). What to point reviewers at:
+  - Guests agree to the terms when joining; the terms state there's no tolerance for objectionable content.
+  - Guests can report a photo (the host is alerted; several reports hide it) or a comment (hidden at once).
+  - Hosts can approve photos before they're public, hide or delete any photo or comment, and **remove a guest**
+    (photo viewer → ⋯ → *Remove this guest*). This signs the guest out and hides all of their photos and comments.
+  - The terms promise that reports sent to the operator are acted on within 24 hours. Keep that promise.
+- **Reviewer access.** Registration is invite-only, so give reviewers a host login and a test event code.
+- **Permissions.** Android: Camera only (no storage, microphone, physical-activity or overlay permission; library
+  photos come through the system photo picker). iOS: camera and photo library. A microphone description is present
+  only because the camera module includes it; the app never records audio. No location, tracking or Face ID.
+- **iOS privacy manifest.** Declared in `app.json` (`ios.privacyManifests`): no tracking; required-reason APIs for
+  user defaults, file timestamps, system boot time and disk space.
+- **No outside purchases.** The in-app terms and privacy links add `?from=app`, which hides links to the marketing
+  site (it shows prices). Don't add links to pricing or checkout in the app.
 - **Privacy forms.** Collected data: name (optional for guests), email (hosts), photos, and a random device ID
   used for rate limiting. Privacy policy URL: `https://<your domain>/privacy`.
+- **Store title.** Google Play already has an app called "SNAP.SHARE", so use a distinct listing title such as
+  *SnapShare – Event Photos*. The name under the icon stays "SnapShare".
+- **Tablets.** On Android 16, apps targeting API 36 can't lock tablets and foldables to portrait. The app is built
+  for phones, so in Play Console → *Test and release → Device catalog*, exclude tablets (and Chromebooks) until a
+  landscape layout is tested. iOS is iPhone-only (`supportsTablet: false`); iPads run it in iPhone mode.

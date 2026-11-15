@@ -2,8 +2,9 @@
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000").replace(/\/$/, "");
 export const WS_URL = API_URL.replace(/^http/, "ws") + "/ws";
 
-export const TERMS_URL = `${API_URL}/terms`;
-export const PRIVACY_URL = `${API_URL}/privacy`;
+// ?from=app: the pages leave out links to the marketing site (pricing), as the app stores require.
+export const TERMS_URL = `${API_URL}/terms?from=app`;
+export const PRIVACY_URL = `${API_URL}/privacy?from=app`;
 
 /** Where account-deletion and help requests go (the same address as the server's CONTACT_EMAIL). */
 export const SUPPORT_EMAIL = process.env.EXPO_PUBLIC_SUPPORT_EMAIL ?? "chris.ancheta@topitsolutions.co.nz";

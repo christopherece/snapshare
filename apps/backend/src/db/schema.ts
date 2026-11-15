@@ -220,3 +220,4 @@ export type Host = typeof hosts.$inferSelect;
 export type Event = typeof events.$inferSelect;
 export type Guest = typeof guests.$inferSelect;
 export type Photo = typeof photos.$inferSelect;
+export type PhotoComment = typeof photoComments.$inferSelect;

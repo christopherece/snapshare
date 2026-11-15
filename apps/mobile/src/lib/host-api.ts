@@ -1,4 +1,4 @@
-import type { ModerationStatus, PageResponse, PhotoDTO } from "@snapshare/shared";
+import type { CommentDTO, ModerationStatus, PageResponse, PhotoDTO } from "@snapshare/shared";
 import { useHostAuth } from "../store/host";
 import { API_URL } from "./config";
 import { ApiError, http } from "./http";
@@ -38,6 +38,9 @@ export interface EventInput {
   requireApproval?: boolean;
   uploadsOpen?: boolean;
 }
+
+/** A comment as the host sees it: `hidden` = a guest reported it, so guests no longer see it. */
+export type HostComment = CommentDTO & { hidden: boolean };
 
 export type PhotoFilter = "all" | "pending" | "favorites" | "hidden" | "reported";
 
@@ -107,6 +110,11 @@ export const hostApi = {
   moderate: (photoId: string, patch: { moderation?: ModerationStatus; isFavorite?: boolean }) =>
     authed<PhotoDTO>(`/host/photos/${photoId}`, { method: "PATCH", body: patch }),
   deletePhoto: (photoId: string) => authed<null>(`/host/photos/${photoId}`, { method: "DELETE" }),
+  /** Block the guest who took this photo and hide all of their photos and comments. */
+  removeGuest: (photoId: string) =>
+    authed<{ removed: boolean; photosHidden: number }>(`/host/photos/${photoId}/remove-guest`, { method: "POST" }),
+  comments: (photoId: string) => authed<HostComment[]>(`/host/photos/${photoId}/comments`),
+  deleteComment: (commentId: string) => authed<null>(`/host/comments/${commentId}`, { method: "DELETE" }),
 
   /** A short-lived signed link to a ZIP of the originals — safe to hand to the browser. */
   downloadUrl: async (eventId: string, filter: "all" | "favorites") => {
@@ -126,4 +134,5 @@ export const hostKeys = {
   photos: (id: string, filter: PhotoFilter) => ["host", "photos", id, filter] as const,
   allPhotos: (id: string) => ["host", "photos", id] as const,
   qr: (id: string) => ["host", "qr", id] as const,
+  comments: (photoId: string) => ["host", "comments", photoId] as const,
 };

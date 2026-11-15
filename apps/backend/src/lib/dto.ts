@@ -1,5 +1,5 @@
-import type { EventPublicDTO, PhotoDTO } from "@snapshare/shared";
-import type { Event, Photo } from "../db/schema.ts";
+import type { CommentDTO, EventPublicDTO, PhotoDTO } from "@snapshare/shared";
+import type { Event, Photo, PhotoComment } from "../db/schema.ts";
 import { hiddenKey, presignDownload, publicUrl } from "./storage.ts";
 
 /** Approved renditions are on the CDN; pending/hidden ones (host-only) get short-lived signed links. */
@@ -49,3 +49,7 @@ export const cursor = {
     return id && !Number.isNaN(createdAt.getTime()) ? { createdAt, id } : null;
   },
 };
+
+export function toCommentDTO(c: PhotoComment, guestName: string | null): CommentDTO {
+  return { id: c.id, photoId: c.photoId, guestName, body: c.body, createdAt: c.createdAt.toISOString() };
+}

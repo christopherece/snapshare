@@ -1,4 +1,4 @@
-import { and, count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, ne } from "drizzle-orm";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import QRCode from "qrcode";
@@ -7,7 +7,7 @@ import { db, schema } from "../db/client.ts";
 import type { Host } from "../db/schema.ts";
 import { env } from "../env.ts";
 import { type AppEnv, assertCanManageEvent, randomToken, requireHost } from "../lib/auth.ts";
-import { toPhotoDTO } from "../lib/dto.ts";
+import { toCommentDTO, toPhotoDTO } from "../lib/dto.ts";
 import { eventInput, hostEventView, joinUrl, photoCounts, updateEvent } from "../lib/events.ts";
 import { body, notFound, randomSlug } from "../lib/http.ts";
 import { presignDownload, renditionLocations, s3, setRenditionVisibility } from "../lib/storage.ts";
@@ -148,6 +148,51 @@ export const hostRoutes = new Hono<AppEnv>()
       ),
     );
     realtime.photoRemoved(photo.eventId, photo.id);
+    return c.body(null, 204);
+  })
+
+  /**
+   * Remove the guest who took this photo: they're signed out of the event and can't rejoin from that
+   * phone, and all of their photos and comments are hidden from guests and the slideshow.
+   */
+  .post("/photos/:id/remove-guest", async (c) => {
+    const photo = await findManagedPhoto(c.get("host"), c.req.param("id"));
+    if (!photo.guestId) throw new HTTPException(409, { message: "We can't tell which guest took this photo" });
+    await db.update(schema.guests).set({ isBlocked: true }).where(eq(schema.guests.id, photo.guestId));
+
+    const theirs = await db
+      .select()
+      .from(schema.photos)
+      .where(and(eq(schema.photos.guestId, photo.guestId), ne(schema.photos.moderation, "hidden")));
+    for (const p of theirs) {
+      // Same as hiding each one: renditions off the public CDN first. (Unfinished photos are hidden
+      // when the media queue completes them, because it follows the moderation status.)
+      if (p.status === "ready") await setRenditionVisibility([p.thumbKey, p.displayKey], false);
+      const [updated] = await db.update(schema.photos).set({ moderation: "hidden" }).where(eq(schema.photos.id, p.id)).returning();
+      if (updated!.status === "ready") realtime.photoModerated(toPhotoDTO(updated!, photo.guestName), p.moderation);
+    }
+    await db.update(schema.photoComments).set({ isHidden: true }).where(eq(schema.photoComments.guestId, photo.guestId));
+    return c.json({ removed: true, photosHidden: theirs.length });
+  })
+
+  /** Every comment on a photo, including ones hidden after a report. */
+  .get("/photos/:id/comments", async (c) => {
+    const photo = await findManagedPhoto(c.get("host"), c.req.param("id"));
+    const rows = await db
+      .select({ comment: schema.photoComments, guestName: schema.guests.displayName })
+      .from(schema.photoComments)
+      .leftJoin(schema.guests, eq(schema.guests.id, schema.photoComments.guestId))
+      .where(eq(schema.photoComments.photoId, photo.id))
+      .orderBy(schema.photoComments.createdAt)
+      .limit(500);
+    return c.json(rows.map((r) => ({ ...toCommentDTO(r.comment, r.guestName), hidden: r.comment.isHidden })));
+  })
+
+  .delete("/comments/:id", async (c) => {
+    const comment = await db.query.photoComments.findFirst({ where: eq(schema.photoComments.id, c.req.param("id")) });
+    if (!comment) notFound("Comment");
+    await findManagedPhoto(c.get("host"), comment.photoId); // checks the host manages this event
+    await db.delete(schema.photoComments).where(eq(schema.photoComments.id, comment.id));
     return c.body(null, 204);
   })
 

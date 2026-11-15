@@ -332,8 +332,20 @@ function Gallery({ event, token, onCountsChanged }: { event: HostEvent; token: s
     };
   }, [event.id, token, bumpCounts]);
 
-  const act = async (photo: PhotoDTO, action: "approve" | "hide" | "favorite" | "delete") => {
-    if (action === "delete") {
+  const act = async (photo: PhotoDTO, action: "approve" | "hide" | "favorite" | "delete" | "removeGuest") => {
+    if (action === "removeGuest") {
+      const who = photo.guestName ?? "this guest";
+      if (!confirm(`Remove ${who}? They'll be signed out of the event and can't rejoin from their phone. All of their photos and comments will be hidden.`)) return;
+      try {
+        const res = await api.removeGuest(photo.id);
+        alert(`${who} has been removed. ${res.photosHidden} photo${res.photosHidden === 1 ? "" : "s"} hidden.`);
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Couldn't remove the guest.");
+      }
+      // Their photos are now hidden: reload this view so it matches.
+      setOpen(null);
+      void load(true);
+    } else if (action === "delete") {
       if (!confirm("Delete this photo permanently? This can't be undone.")) return;
       await api.deletePhoto(photo.id);
       setPhotos((prev) => prev.filter((p) => p.id !== photo.id));
@@ -466,7 +478,7 @@ function Lightbox(props: {
   onClose: () => void;
   onPrev?: () => void;
   onNext?: () => void;
-  onAction: (a: "approve" | "hide" | "favorite" | "delete") => void;
+  onAction: (a: "approve" | "hide" | "favorite" | "delete" | "removeGuest") => void;
 }) {
   const { photo, onClose, onPrev, onNext, onAction } = props;
   useEffect(() => {
@@ -514,6 +526,9 @@ function Lightbox(props: {
           )}
           <button className="btn small danger" onClick={() => onAction("delete")}>
             Delete
+          </button>
+          <button className="btn small danger" onClick={() => onAction("removeGuest")} title="Sign this guest out and hide all of their photos and comments">
+            Remove guest
           </button>
           <button className="btn small ghost" onClick={onClose}>
             Close

@@ -51,6 +51,10 @@ export const api = {
   addComment: (photoId: string, body: string) =>
     http<CommentDTO>(`/photos/${photoId}/comments`, { method: "POST", body: { body }, headers: guest() }),
 
+  /** Hides the comment for everyone straight away; the host can still review and delete it. */
+  reportComment: (photoId: string, commentId: string) =>
+    http<{ hidden: boolean }>(`/photos/${photoId}/comments/${commentId}/report`, { method: "POST", headers: guest() }),
+
   /** Only the host sees reports; the guest's name isn't attached. */
   reportPhoto: (photoId: string, reason: ReportReason) =>
     http<{ reported: boolean }>(`/photos/${photoId}/report`, { method: "POST", body: { reason }, headers: guest() }),

@@ -3,7 +3,7 @@ import type { PhotoDTO, ReportReason } from "@snapshare/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { patchFeed } from "../hooks/useEventFeed";
 import { api } from "../lib/api";
@@ -158,6 +158,14 @@ function Comments({ photoId, maxHeight }: { photoId: string; maxHeight: number }
       void qc.invalidateQueries({ queryKey: ["comments", photoId] });
     },
   });
+  const reportComment = useMutation({
+    mutationFn: (commentId: string) => api.reportComment(photoId, commentId),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["comments", photoId] });
+      Alert.alert("Thanks", "The comment has been hidden and the host can review it.");
+    },
+    onError: (err) => Alert.alert("Couldn't report the comment", errorMessage(err, "Please try again.")),
+  });
 
   return (
     <View>
@@ -172,9 +180,26 @@ function Comments({ photoId, maxHeight }: { photoId: string; maxHeight: number }
           keyExtractor={(c) => c.id}
           keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
-            <View className="py-2">
-              <Text className="text-xs font-semibold text-muted dark:text-muted-dark">{item.guestName ?? "Guest"}</Text>
-              <Text className="mt-0.5 text-base leading-6 text-ink dark:text-paper">{item.body}</Text>
+            <View className="flex-row items-start gap-3 py-2">
+              <View className="flex-1">
+                <Text className="text-xs font-semibold text-muted dark:text-muted-dark">{item.guestName ?? "Guest"}</Text>
+                <Text className="mt-0.5 text-base leading-6 text-ink dark:text-paper">{item.body}</Text>
+              </View>
+              <Pressable
+                onPress={() =>
+                  Alert.alert("Report this comment?", "It will be hidden straight away, and the host can review it.", [
+                    { text: "Cancel", style: "cancel" },
+                    { text: "Report", style: "destructive", onPress: () => reportComment.mutate(item.id) },
+                  ])
+                }
+                disabled={reportComment.isPending}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Report comment by ${item.guestName ?? "a guest"}`}
+                className="p-1.5"
+              >
+                <Ionicons name="flag-outline" size={16} color={theme.muted} />
+              </Pressable>
             </View>
           )}
           ListEmptyComponent={<Text className="py-4 text-center text-muted dark:text-muted-dark">Say something nice ✨</Text>}

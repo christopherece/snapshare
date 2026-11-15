@@ -179,6 +179,8 @@ export const api = {
   moderate: (photoId: string, patch: { moderation?: PhotoDTO["moderation"]; isFavorite?: boolean }) =>
     json<PhotoDTO>(`/host/photos/${photoId}`, { method: "PATCH", body: JSON.stringify(patch) }),
   deletePhoto: (photoId: string) => json<null>(`/host/photos/${photoId}`, { method: "DELETE" }),
+  removeGuest: (photoId: string) =>
+    json<{ removed: boolean; photosHidden: number }>(`/host/photos/${photoId}/remove-guest`, { method: "POST" }),
 
   downloadUrl: async (eventId: string, filter: "all" | "favorites") => {
     const { path } = await json<{ path: string }>(`/host/events/${eventId}/download-link?filter=${filter}`, {
